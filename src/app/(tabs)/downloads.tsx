@@ -1,3 +1,3 @@
-import  DownloadScreen  from "../../screens/downloadScreen";
+import PremiumScreen from "../../screens/Premiums/premiumScreen";
 
-export default DownloadScreen;
+export default PremiumScreen;

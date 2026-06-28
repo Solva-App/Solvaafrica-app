@@ -5,41 +5,45 @@ import {
   View,
   Linking,
   Platform,
+  ScrollView,
+  SafeAreaView
 } from "react-native";
-import { useNavigation, Link } from "@react-navigation/native";
-import ArrowLeftIcon from "@expo/vector-icons/Octicons";
-import CheckIcon from "@expo/vector-icons/FontAwesome";
+import { useNavigation } from "@react-navigation/native";
+import LeftIcon from "@expo/vector-icons/Ionicons";
+import CheckIcon from "@expo/vector-icons/Feather";
 import { useEffect, useState } from "react";
 
-import { AUTH_API_CLIENT, PUB_API_CLIENT } from "../api/apiClient";
+import { AUTH_API_CLIENT } from "../api/apiClient";
 import { hscale, mscale, wscale } from "../helpers/metric";
-import { globalStyles } from "../styles/global";
 import { colors } from "../constants/theme";
 import LoadingView from "./loadingView";
 import ErrorModal from "./errorModal";
 
-type subscriptionPlans = "Basic" | "Premium";
-
 export default function SubscribeView() {
   const navigation = useNavigation();
 
-  const [activePlan, setActivePlan] = useState<subscriptionPlans>("Premium");
   const [isLoading, setIsLoading] = useState<boolean>(false);
-
   const [errorVisible, setErrorVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  const planOffers: PlanOfferProps = {
-    basic: ["Past questions", "Project Materials"],
-    premium: [
-      "Upload PQ/Project (earn money)",
-      "Grant/Scholarship Information",
-      "Get Certified on short courses",
-      "Innovation/Angel investors news",
-      "Therapy",
-      "Task (earn money completing a task)",
-    ],
-  };
+  const premiumFeatures = [
+    {
+      title: "Upload PQ/Project (earn money)",
+      desc: "I.e: Make N200 per Past Question upload;\nMake N2,000 per Project upload.",
+    },
+    {
+      title: "Grant/Scholarship Information",
+      desc: "Access direct, curated financial aid\nopportunities to fund your education.",
+    },
+    {
+      title: "Get Certified on short courses",
+      desc: "I.e: Get certified for FREE or a heavily\nstudent-discounted amount.",
+    },
+    {
+      title: "Task (earn money completing a task)",
+      desc: "Flyer Share (WhatsApp/Insta/TikTok):\nN1,000 - N2,000+\nVideo Content for Brands: N10,000-\nN20,000+",
+    },
+  ];
 
   useEffect(() => {
     navigation.setOptions({
@@ -50,18 +54,12 @@ export default function SubscribeView() {
     });
   }, []);
 
-  const handleSubButtonPress = (subPlan: subscriptionPlans) => {
-    setActivePlan(subPlan);
-  };
-
   const handleSubscribe = async () => {
     let win: Window | null = null;
 
     try {
-      // ✅ ONLY open window on web
       if (Platform.OS === "web") {
         win = window.open("", "_blank");
-
         if (win) {
           win.document.write("<p>Redirecting to payment...</p>");
         }
@@ -70,32 +68,23 @@ export default function SubscribeView() {
       setIsLoading(true);
 
       const res = await AUTH_API_CLIENT.get(
-        `/sub/${activePlan}/link?callback=https://www.solvaafrica.com`,
+        `/sub/Premium/link?callback=https://www.solvaafrica.com`,
       );
 
       if (res.status === 200) {
         const subLink = res.data.data.authorization_url;
-
-        console.log("Subscription response", res.data);
-        console.log("SUB LINK:", subLink);
-
-        // ✅ WEB
         if (Platform.OS === "web") {
           if (win) {
-            win.location.href = subLink; // 🔥 Safari-safe redirect
+            win.location.href = subLink;
           } else {
             alert("Please allow popups for this site");
           }
           return;
         }
 
-        // ✅ MOBILE (iOS / Android)
         await Linking.openURL(subLink);
       }
     } catch (error: any) {
-      console.log("FULL ERROR:", error);
-
-      // close blank tab if error
       if (Platform.OS === "web" && win) {
         win.close();
       }
@@ -115,130 +104,167 @@ export default function SubscribeView() {
   if (isLoading) return <LoadingView isLoading={isLoading} />;
 
   return (
-    <View style={[globalStyles.screen, { backgroundColor: colors.primary }]}>
-      <ArrowLeftIcon
-        name="arrow-left"
-        size={24}
-        color={"#ffffff"}
-        style={{ marginTop: hscale(20) }}
-        onPress={() => navigation.goBack()}
-      />
-      <Text style={styles.subscribe}>Subscribe to unlock all features</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={8}
+          >
+            <LeftIcon name="arrow-back" size={mscale(24)} color="#fff" />
+          </Pressable>
+        </View>
 
-      <View style={{ gap: 20, marginTop: hscale(40) }}>
-        <SubButton
-          handleOnPress={() => handleSubButtonPress("Premium")}
-          subPlan="Premium"
-          subPrice="999"
-          isActive={activePlan === "Premium" ? true : false}
-        />
-        {activePlan === "Premium" && (
-          <View style={{ marginLeft: wscale(20), gap: hscale(8) }}>
-            {planOffers.premium.map((offer) => (
-              <View
-                key={offer}
-                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
-              >
-                <CheckIcon name="check" size={20} color={"#ffffff"} />
-                <Text key={offer} style={styles.planOffer}>
-                  {offer}
-                </Text>
+        {/* Title */}
+        <Text style={styles.subscribeTitle}>
+          Subscribe to unlock all features
+        </Text>
+
+        {/* Plan Box */}
+        <View style={styles.planBox}>
+          <Text style={styles.planName}>Premium</Text>
+          <Text style={styles.planPrice}>N999/1month</Text>
+        </View>
+
+        {/* Features List */}
+        <View style={styles.featuresList}>
+          {premiumFeatures.map((feature, index) => (
+            <View key={index} style={styles.featureItem}>
+              <CheckIcon
+                name="check"
+                size={mscale(20)}
+                color="#fff"
+                style={styles.checkIcon}
+              />
+              <View style={styles.featureTextContainer}>
+                <Text style={styles.featureTitle}>{feature.title}</Text>
+                <Text style={styles.featureDesc}>{feature.desc}</Text>
               </View>
-            ))}
-          </View>
-        )}
-      </View>
+            </View>
+          ))}
+        </View>
 
-      <Text onPress={handleSubscribe} style={styles.subscribeButton}>
-        Subscribe
-      </Text>
+        {/* Spacer to push button to bottom if screen is tall */}
+        <View style={styles.spacer} />
+
+        {/* Subscribe Button */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.subscribeButton,
+            { opacity: pressed ? 0.8 : 1 },
+          ]}
+          onPress={handleSubscribe}
+        >
+          <Text style={styles.subscribeButtonText}>Subscribe</Text>
+        </Pressable>
+      </ScrollView>
+
       <ErrorModal
         visible={errorVisible}
         message={errorMessage}
         onClose={() => setErrorVisible(false)}
       />
-    </View>
+    </SafeAreaView>
   );
 }
-
-interface SubButtonProps {
-  subPlan: "Premium" | "Basic";
-  subPrice: "999";
-  isActive: boolean;
-  handleOnPress: () => void;
-}
-
-interface PlanOfferProps {
-  basic: string[];
-  premium: string[];
-}
-
-const SubButton = ({
-  subPlan,
-  subPrice,
-  isActive,
-  handleOnPress,
-}: SubButtonProps) => {
-  return (
-    <Pressable
-      onPress={handleOnPress}
-      style={[
-        styles.subButton,
-        { backgroundColor: isActive ? "#ffffff" : colors.greyView },
-      ]}
-    >
-      <Text
-        style={{
-          fontFamily: "Inter-Medium",
-          fontSize: mscale(16),
-          color: isActive ? colors.primary : colors.bodyText,
-        }}
-      >
-        {subPlan}
-      </Text>
-      <Text
-        style={{
-          fontFamily: "Inter-Medium",
-          fontSize: mscale(20),
-          color: isActive ? colors.primary : colors.bodyText,
-        }}
-      >
-        {`\u20A6 ${subPrice} / month`}
-      </Text>
-    </Pressable>
-  );
-};
 
 const styles = StyleSheet.create({
-  subscribe: {
-    fontFamily: "Inter-Bold",
-    color: "#ffffff",
-    textAlign: "center",
-    fontSize: mscale(24),
-    width: 361,
-    marginHorizontal: "auto",
+  container: {
+    flex: 1,
+    backgroundColor: colors.primary, // Dark purple from the design
   },
-  subButton: {
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: wscale(24),
+    paddingTop: hscale(20),
+    paddingBottom: hscale(40),
+    flexGrow: 1,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: hscale(30),
+  },
+  backBtn: {
+    padding: 4,
+  },
+  subscribeTitle: {
+    fontFamily: "Inter-Medium",
+    color: "#ffffff",
+    fontSize: mscale(22),
+    marginBottom: hscale(30),
+  },
+  planBox: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: hscale(20),
-    backgroundColor: "#ffffff",
-    borderRadius: mscale(10),
     alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: mscale(12),
+    paddingVertical: hscale(20),
+    paddingHorizontal: wscale(20),
+    marginBottom: hscale(30),
   },
-  planOffer: {
+  planName: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(16),
+    color: colors.primary,
+  },
+  planPrice: {
     fontFamily: "Inter-Medium",
-    fontSize: mscale(14),
+    fontSize: mscale(16),
+    color: colors.primary,
+  },
+  featuresList: {
+    gap: hscale(24),
+    marginBottom: hscale(40),
+  },
+  featureItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  checkIcon: {
+    marginTop: hscale(2),
+    marginRight: wscale(12),
+  },
+  featureTextContainer: {
+    flex: 1,
+  },
+  featureTitle: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(15),
     color: "#ffffff",
+    marginBottom: hscale(4),
+  },
+  featureDesc: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    fontStyle: "italic",
+    color: "#ffffff",
+    lineHeight: mscale(20),
+    opacity: 0.95,
+  },
+  spacer: {
+    flex: 1,
   },
   subscribeButton: {
-    padding: hscale(20),
-    marginTop: hscale(40),
     backgroundColor: "#ffffff",
-    borderRadius: mscale(50),
-    fontFamily: "Inter-Bold",
+    borderRadius: mscale(30),
+    paddingVertical: hscale(18),
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+  },
+  subscribeButtonText: {
+    fontFamily: "Inter-Medium",
     fontSize: mscale(16),
-    textAlign: "center",
     color: colors.primary,
   },
 });

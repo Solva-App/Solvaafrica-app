@@ -652,7 +652,7 @@ const EarningsBalanceView = ({
               },
             ]}
           >
-            Minimum cashout NGN 10,000
+            Minimum cashout NGN 1,000
           </Text>
         </View>
         <Text style={styles.textButton} onPress={handleNavigateCashout}>

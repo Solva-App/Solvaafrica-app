@@ -1,23 +1,37 @@
 import { useLocalSearchParams, router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { View, Text, Pressable, Alert, Animated, Easing } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  Alert,
+  Animated,
+  Easing,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
 import DownloadIcon from "@expo/vector-icons/Feather";
+import BackIcon from "@expo/vector-icons/Ionicons";
+import SearchIcon from "@expo/vector-icons/Feather";
+import UniversityIcon from "@expo/vector-icons/FontAwesome";
+import PDFIcon from "@expo/vector-icons/FontAwesome6";
 import { FlashList } from "@shopify/flash-list";
 import { useCallback, useEffect, useRef, useState } from "react";
-import PDFIcon from "@expo/vector-icons/FontAwesome6";
 import * as FileSystem from "expo-file-system";
 
 import { hscale, mscale, wscale } from "../helpers/metric";
 import EmptyStateView from "../components/emptyStateView";
 import LoadingView from "../components/loadingView";
 import { AUTH_API_CLIENT } from "../api/apiClient";
-import { globalStyles } from "../styles/global";
 import { colors } from "../constants/theme";
 import ErrorModal from "../components/errorModal";
 import { DownloadedFileRef } from "../types";
 import { useDownloadFile } from "../hooks/useDownloadFile";
 import { normalizeRemoteFileUrl } from "../helpers/normalizeRemoteFileUrl";
+
+// ─── Helpers (unchanged) ──────────────────────────────────────────────────────
 
 const normalizeText = (value?: string | null) =>
   (value ?? "")
@@ -30,27 +44,22 @@ const normalizeText = (value?: string | null) =>
 
 const extractCoursesFromResponse = (payload: any): any[] => {
   const responseData = payload?.data;
-
   if (Array.isArray(responseData)) return responseData;
   if (Array.isArray(responseData?.documents)) return responseData.documents;
   if (Array.isArray(payload?.documents)) return payload.documents;
   if (Array.isArray(payload)) return payload;
-
   return [];
 };
 
 const buildUniversityCandidates = (university: string) => {
   const raw = university?.trim();
   if (!raw) return [];
-
   const candidates = new Set<string>();
   const withoutBracket = raw.replace(/\s*\([^)]*\)\s*/g, "").trim();
   const bracketMatch = raw.match(/\(([^)]+)\)/);
-
   candidates.add(raw);
   if (withoutBracket) candidates.add(withoutBracket);
   if (bracketMatch?.[1]) candidates.add(bracketMatch[1].trim());
-
   return Array.from(candidates).map(normalizeText).filter(Boolean);
 };
 
@@ -60,7 +69,6 @@ const matchesSelectedValue = (
 ) => {
   const actual = normalizeText(actualValue);
   const selected = normalizeText(selectedValue);
-
   if (!actual || !selected) return false;
   return (
     actual === selected ||
@@ -72,14 +80,10 @@ const matchesSelectedValue = (
 type CourseDocument = { url?: string; name?: string };
 
 const normalizeCourseCode = (value?: string | null) =>
-  String(value ?? "")
-    .trim()
-    .toLowerCase();
+  String(value ?? "").trim().toLowerCase();
 
 const normalizeFileName = (value?: string | null) =>
-  String(value ?? "")
-    .trim()
-    .toLowerCase();
+  String(value ?? "").trim().toLowerCase();
 
 const getCourseDownloadKey = ({
   courseCode,
@@ -91,11 +95,7 @@ const getCourseDownloadKey = ({
   fileUrl?: string | null;
 }) => {
   const normalizedUrl = normalizeRemoteFileUrl(fileUrl);
-
-  if (normalizedUrl) {
-    return `url:${normalizedUrl}`;
-  }
-
+  if (normalizedUrl) return `url:${normalizedUrl}`;
   return `legacy:${normalizeCourseCode(courseCode)}:${normalizeFileName(fileName)}`;
 };
 
@@ -116,6 +116,8 @@ const getValidCourseDocuments = (courseDocuments: CourseDocument[] = []) =>
     (doc): doc is Required<CourseDocument> => !!doc?.url && !!doc?.name,
   );
 
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function CoursesList() {
   const params = useLocalSearchParams();
   const universityParam = Array.isArray(params.university)
@@ -127,8 +129,9 @@ export default function CoursesList() {
   const facultyParam = Array.isArray(params.faculty)
     ? params.faculty[0]
     : params.faculty;
-  const [coursesList, setCoursesList] = useState<any[] | []>([]);
-  const [loadingCourses, setLoadingCourses] = useState<boolean>(false);
+
+  const [coursesList, setCoursesList] = useState<any[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
   const [downloadedCourseKeys, setDownloadedCourseKeys] = useState<Set<string>>(
     new Set(),
   );
@@ -138,7 +141,6 @@ export default function CoursesList() {
   const [errorVisible, setErrorVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const downloadCourseFile = useDownloadFile(true);
-  console.log(coursesList);
 
   useFocusEffect(
     useCallback(() => {
@@ -146,20 +148,17 @@ export default function CoursesList() {
         try {
           const raw = await AsyncStorage.getItem("DownloadRefs");
           const downloads: DownloadedFileRef[] = raw ? JSON.parse(raw) : [];
-
           const courseKeys = new Set(
             downloads
               .filter((item) => item.parentDirectory === "Courses")
               .map(getStoredCourseDownloadKey),
           );
-
           setDownloadedCourseKeys(courseKeys);
         } catch (error) {
           console.log("error fetching downloaded courses", error);
           setDownloadedCourseKeys(new Set());
         }
       };
-
       fetchDownloadedCourses();
     }, []),
   );
@@ -169,34 +168,24 @@ export default function CoursesList() {
     courseDocuments: CourseDocument[],
   ) => {
     const validDocuments = getValidCourseDocuments(courseDocuments);
-
     if (!validDocuments.length) {
       Alert.alert("No files", "This course has no downloadable files yet.");
       return;
     }
-
     const courseDocumentKeys = validDocuments.map((doc) =>
-      getCourseDownloadKey({
-        courseCode,
-        fileName: doc.name,
-        fileUrl: doc.url,
-      }),
+      getCourseDownloadKey({ courseCode, fileName: doc.name, fileUrl: doc.url }),
     );
-
     try {
       const raw = await AsyncStorage.getItem("DownloadRefs");
       const downloads: DownloadedFileRef[] = raw ? JSON.parse(raw) : [];
-
       const matchingCourseDownloads = downloads.filter(
         (item) =>
           item.parentDirectory === "Courses" &&
           courseDocumentKeys.includes(getStoredCourseDownloadKey(item)),
       );
-
       const existingCourseDownloadKeys = new Set(
         matchingCourseDownloads.map(getStoredCourseDownloadKey),
       );
-
       const nextDocumentToDownload = validDocuments.find(
         (doc) =>
           !existingCourseDownloadKeys.has(
@@ -207,16 +196,13 @@ export default function CoursesList() {
             }),
           ),
       );
-
       if (nextDocumentToDownload) {
         const nextDocumentKey = getCourseDownloadKey({
           courseCode,
           fileName: nextDocumentToDownload.name,
           fileUrl: nextDocumentToDownload.url,
         });
-
         setDownloadingCourseKeys((prev) => new Set(prev).add(nextDocumentKey));
-
         try {
           const result = await downloadCourseFile(
             "Courses",
@@ -224,7 +210,6 @@ export default function CoursesList() {
             nextDocumentToDownload.name,
             courseCode,
           );
-
           if (result?.success) {
             setDownloadedCourseKeys((prev) =>
               new Set(prev).add(nextDocumentKey),
@@ -237,10 +222,8 @@ export default function CoursesList() {
             return next;
           });
         }
-
         return;
       }
-
       Alert.alert(
         "Delete downloaded files?",
         `Remove ${matchingCourseDownloads.length} downloaded file(s) for ${courseCode}?`,
@@ -255,9 +238,7 @@ export default function CoursesList() {
                   item.platform === "web" ||
                   item.filePath.startsWith("http://") ||
                   item.filePath.startsWith("https://");
-
                 if (isRemotePath) continue;
-
                 try {
                   await FileSystem.deleteAsync(item.filePath, {
                     idempotent: true,
@@ -266,7 +247,6 @@ export default function CoursesList() {
                   console.log("error deleting local file", deleteError);
                 }
               }
-
               const filteredDownloads = downloads.filter(
                 (item) =>
                   !(
@@ -276,16 +256,13 @@ export default function CoursesList() {
                     )
                   ),
               );
-
               await AsyncStorage.setItem(
                 "DownloadRefs",
                 JSON.stringify(filteredDownloads),
               );
               setDownloadedCourseKeys((prev) => {
                 const next = new Set(prev);
-                courseDocumentKeys.forEach((courseDocumentKey) =>
-                  next.delete(courseDocumentKey),
-                );
+                courseDocumentKeys.forEach((k) => next.delete(k));
                 return next;
               });
             },
@@ -298,12 +275,10 @@ export default function CoursesList() {
   };
 
   useEffect(() => {
-    // fetch courses based on params
     if (!universityParam || !departmentParam || !facultyParam) {
       setCoursesList([]);
       return;
     }
-
     const fetchCourses = async () => {
       setLoadingCourses(true);
       try {
@@ -315,15 +290,11 @@ export default function CoursesList() {
           },
         });
         let courses = extractCoursesFromResponse(res.data);
-
-        // Fallback: some backend rows may not exactly match the labels in data.ts
-        // (e.g. abbreviations, punctuation, or slightly different naming).
         if (!courses.length) {
           const fallbackRes = await AUTH_API_CLIENT.get("/questions");
           const allCourses = extractCoursesFromResponse(fallbackRes.data);
           const universityCandidates =
             buildUniversityCandidates(universityParam);
-
           courses = allCourses.filter((item: any) => {
             const question = item?.question ?? {};
             const universityOk =
@@ -332,7 +303,6 @@ export default function CoursesList() {
                 : universityCandidates.some((candidate) =>
                     matchesSelectedValue(question.university, candidate),
                   );
-
             const facultyOk = matchesSelectedValue(
               question.faculty,
               facultyParam,
@@ -341,41 +311,56 @@ export default function CoursesList() {
               question.department,
               departmentParam,
             );
-
             return universityOk && facultyOk && departmentOk;
           });
         }
-
         setCoursesList(courses);
       } catch (error) {
         console.log("error fetching courses", error);
-        const message = "Something went wrong!";
-
-        setErrorMessage(message);
+        setErrorMessage("Something went wrong!");
         setErrorVisible(true);
       } finally {
         setLoadingCourses(false);
       }
     };
-
     fetchCourses();
   }, [universityParam, departmentParam, facultyParam]);
 
   if (loadingCourses) return <LoadingView isLoading={loadingCourses} />;
+
   return (
-    <View style={{ flex: 1, backgroundColor: "#ffffff" }}>
+    <View style={styles.screen}>
+      {/* ── Header ── */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <BackIcon name="arrow-back" size={mscale(22)} color={colors.primary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Courses</Text>
+        <TouchableOpacity style={styles.searchIconBtn}>
+          <SearchIcon name="search" size={mscale(20)} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Department chip ── */}
+      {!!departmentParam && (
+        <View style={styles.chipRow}>
+          <View style={styles.chip}>
+            <Text style={styles.chipText}>{departmentParam}</Text>
+          </View>
+        </View>
+      )}
+
+      {/* ── Course list ── */}
       {!coursesList.length ? (
         <EmptyStateView />
       ) : (
         <FlashList
           data={coursesList}
-          extraData={{
-            downloadedCourseKeys,
-            downloadingCourseKeys,
-          }}
+          extraData={{ downloadedCourseKeys, downloadingCourseKeys }}
           estimatedItemSize={coursesList.length}
           keyExtractor={(item) => String(item.question.id)}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: hscale(20) }}
           renderItem={({ item }) => {
             const courseCode = String(item.question.courseCode ?? "");
             const courseDocuments = getValidCourseDocuments(
@@ -390,32 +375,28 @@ export default function CoursesList() {
             );
             const isDownloaded =
               courseDocumentKeys.length > 0 &&
-              courseDocumentKeys.every((courseDocumentKey) =>
-                downloadedCourseKeys.has(courseDocumentKey),
-              );
-            const isDownloading = courseDocumentKeys.some((courseDocumentKey) =>
-              downloadingCourseKeys.has(courseDocumentKey),
+              courseDocumentKeys.every((k) => downloadedCourseKeys.has(k));
+            const isDownloading = courseDocumentKeys.some((k) =>
+              downloadingCourseKeys.has(k),
             );
-
             return (
-              <View style={globalStyles.screen}>
-                <CoursesListItem
-                  courseTitle={item.question.title}
-                  courseCode={courseCode}
-                  university={item.question.university}
-                  courseId={String(item.question.id)}
-                  hasDownloadableFiles={courseDocuments.length > 0}
-                  isDownloaded={isDownloaded}
-                  isDownloading={isDownloading}
-                  onDownloadIconPress={() =>
-                    handleDownloadIconPress(courseCode, courseDocuments)
-                  }
-                />
-              </View>
+              <CoursesListItem
+                courseTitle={item.question.title}
+                courseCode={courseCode}
+                university={item.question.university}
+                courseId={String(item.question.id)}
+                hasDownloadableFiles={courseDocuments.length > 0}
+                isDownloaded={isDownloaded}
+                isDownloading={isDownloading}
+                onDownloadIconPress={() =>
+                  handleDownloadIconPress(courseCode, courseDocuments)
+                }
+              />
             );
           }}
         />
       )}
+
       <ErrorModal
         visible={errorVisible}
         message={errorMessage}
@@ -424,6 +405,8 @@ export default function CoursesList() {
     </View>
   );
 }
+
+// ─── Course Card ──────────────────────────────────────────────────────────────
 
 interface CourseListItemProps {
   courseTitle: string;
@@ -454,7 +437,6 @@ const CoursesListItem = ({
       spinAnim.setValue(0);
       return;
     }
-
     const loop = Animated.loop(
       Animated.timing(spinAnim, {
         toValue: 1,
@@ -463,9 +445,7 @@ const CoursesListItem = ({
         useNativeDriver: true,
       }),
     );
-
     loop.start();
-
     return () => {
       loop.stop();
       spinAnim.stopAnimation();
@@ -486,77 +466,54 @@ const CoursesListItem = ({
   };
 
   return (
-    <Pressable
-      onPress={handleCourseListItemPressed}
-      style={{
-        flexDirection: "row",
-        paddingVertical: hscale(12),
-        backgroundColor: colors.inputFieldNew,
-        paddingHorizontal: wscale(28),
-        borderRadius: mscale(12),
-        marginBottom: hscale(20),
-      }}
-    >
-      <PDFIcon name="file-pdf" size={40} color={colors.primary} />
-
-      <View
-        style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          flex: 1,
-          marginLeft: wscale(8),
-          alignItems: "center",
-        }}
-      >
-        <View>
-          <Text
-            style={{
-              fontFamily: "Inter-Bold",
-              color: "#5C5F62",
-              fontSize: mscale(16),
-            }}
-          >
-            {courseCode}
-          </Text>
-
-          <Text
-            style={{
-              fontFamily: "Inter-Regular",
-              color: colors.primary,
-              fontSize: mscale(12),
-              marginTop: hscale(4),
-            }}
-          >
-            {courseTitle.length > 30
-              ? courseTitle.substring(0, 30) + "..."
-              : courseTitle}
-          </Text>
-
-          <Text
-            style={{
-              fontFamily: "Inter-Bold",
-              color: "#5C5F62",
-              fontSize: mscale(14),
-              marginTop: hscale(4),
-            }}
-          >
-            {university}
-          </Text>
+    <View style={styles.card}>
+      {/* ── Card body: PDF icon + info ── */}
+      <View style={styles.cardBody}>
+        {/* PDF icon */}
+        <View style={styles.pdfIconWrap}>
+          <PDFIcon name="file-pdf" size={mscale(22)} color={colors.primary} />
+          <Text style={styles.pdfLabel}>PDF</Text>
         </View>
 
+        {/* Course info */}
+        <View style={styles.courseInfo}>
+          <Text style={styles.courseCode}>{courseCode}</Text>
+          <Text style={styles.courseTitle} numberOfLines={1}>
+            {courseTitle}
+          </Text>
+          <View style={styles.universityRow}>
+            <UniversityIcon name="university" size={mscale(11)} color="#AAA" />
+            <Text style={styles.universityText} numberOfLines={1}>
+              {university}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ── Card footer: View button + download icon ── */}
+      <View style={styles.cardFooter}>
         <Pressable
-          onPress={(event) => {
-            event.stopPropagation();
+          style={styles.viewBtn}
+          onPress={handleCourseListItemPressed}
+        >
+          <Text style={styles.viewBtnText}>View</Text>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.downloadIconBtn,
+            !hasDownloadableFiles && { opacity: 0.4 },
+          ]}
+          onPress={(e) => {
+            e.stopPropagation();
             onDownloadIconPress();
           }}
           disabled={isDownloading || !hasDownloadableFiles}
-          hitSlop={8}
         >
           <Animated.View
-            style={[
-              isDownloading ? { transform: [{ rotate: spin }] } : undefined,
-              !hasDownloadableFiles ? { opacity: 0.4 } : undefined,
-            ]}
+            style={
+              isDownloading ? { transform: [{ rotate: spin }] } : undefined
+            }
           >
             <DownloadIcon
               name={
@@ -566,12 +523,150 @@ const CoursesListItem = ({
                     ? "check-circle"
                     : "download-cloud"
               }
-              size={24}
+              size={mscale(20)}
               color={colors.primary}
             />
           </Animated.View>
         </Pressable>
       </View>
-    </Pressable>
+    </View>
   );
 };
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#fff",
+    paddingHorizontal: wscale(20),
+    paddingTop: hscale(16),
+  },
+
+  // ── Header ──
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: hscale(16),
+  },
+  backBtn: { padding: 4 },
+  headerTitle: {
+    flex: 1,
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(20),
+    color: colors.primary,
+    marginLeft: wscale(8),
+  },
+  searchIconBtn: { padding: 4 },
+
+  // ── Department chip ──
+  chipRow: {
+    flexDirection: "row",
+    marginBottom: hscale(16),
+  },
+  chip: {
+    backgroundColor: "#EDE9FB",
+    borderRadius: mscale(20),
+    paddingVertical: hscale(5),
+    paddingHorizontal: wscale(14),
+  },
+  chipText: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(12),
+    color: colors.primary,
+  },
+
+  // ── Course Card ──
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: mscale(14),
+    borderWidth: 1,
+    borderColor: "#EEEBF5",
+    paddingHorizontal: wscale(14),
+    paddingTop: hscale(14),
+    paddingBottom: hscale(12),
+    marginBottom: hscale(14),
+    shadowColor: "#6207A0",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+  cardBody: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: hscale(12),
+  },
+
+  // PDF icon block
+  pdfIconWrap: {
+    width: wscale(44),
+    height: hscale(50),
+    backgroundColor: "#F5F3FF",
+    borderRadius: mscale(8),
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: wscale(12),
+  },
+  pdfLabel: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(9),
+    color: colors.primary,
+    marginTop: 2,
+  },
+
+  // Course text info
+  courseInfo: { flex: 1, justifyContent: "center" },
+  courseCode: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(15),
+    color: "#1A171C",
+    marginBottom: hscale(2),
+  },
+  courseTitle: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(13),
+    color: colors.primary,
+    marginBottom: hscale(4),
+  },
+  universityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: wscale(4),
+  },
+  universityText: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(11),
+    color: "#AAA",
+    flex: 1,
+  },
+
+  // Card footer
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: wscale(10),
+  },
+  viewBtn: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: mscale(8),
+    height: hscale(38),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  viewBtnText: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(14),
+    color: "#fff",
+  },
+  downloadIconBtn: {
+    width: wscale(42),
+    height: hscale(38),
+    borderRadius: mscale(8),
+    borderWidth: 1.5,
+    borderColor: "#E8E4F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

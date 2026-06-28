@@ -8,16 +8,18 @@ import {
   View,
   Modal,
   Platform,
+  ScrollView,
+  KeyboardAvoidingView,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
 } from "react-native";
-// Remove React Navigation imports
-// import { StaticScreenProps } from "@react-navigation/native";
-// Add Expo Router imports
 import { useLocalSearchParams, useRouter } from "expo-router";
 import IconRight from "@expo/vector-icons/FontAwesome";
 import BankIcon from "@expo/vector-icons/FontAwesome";
 import { FlashList } from "@shopify/flash-list";
 import { Image } from "expo-image";
 import { useState, useEffect } from "react";
+import FeatherIcon from "@expo/vector-icons/Feather";
 
 import { hscale, mscale, wscale } from "../helpers/metric";
 import PrimaryButton from "../components/primaryButton";
@@ -37,7 +39,6 @@ interface BankDetailForm {
 type FormFields = "accountName" | "accountNumber" | "bankName" | "amount";
 
 export default function Cashout() {
-  // Use Expo Router hooks
   const params = useLocalSearchParams();
   const router = useRouter();
   
@@ -53,125 +54,48 @@ export default function Cashout() {
   });
   const [submittingForm, setSubmittingForm] = useState(false);
 
-  // Parse userBalance from URL params
   useEffect(() => {
-    console.log('Platform:', Platform.OS);
-    console.log('URL params:', params);
     if (params.balance) {
-      console.log('Raw balance param:', params.balance);
-      console.log('Type of balance param:', typeof params.balance);
       const balanceValue = parseFloat(params.balance as string);
-      console.log('Parsed balance value:', balanceValue);
-      console.log('Is NaN?', isNaN(balanceValue));
       setUserBalance(isNaN(balanceValue) ? null : balanceValue);
-    } else {
-      console.log('No balance param found');
     }
   }, [params.balance]);
 
   const handleSetForm = (value: string, formField: FormFields | undefined) => {
-    if (formField === "accountName") {
-      setBankDetailsForm((prev) => {
-        return { ...prev, accountName: value };
-      });
-    }
-
-    if (formField === "accountNumber") {
-      setBankDetailsForm((prev) => {
-        return { ...prev, accountNumber: value };
-      });
-    }
-
-    if (formField === "bankName") {
-      setBankDetailsForm((prev) => {
-        return { ...prev, bankName: value };
-      });
-    }
-
-    if (formField === "amount") {
-      setBankDetailsForm((prev) => {
-        return { ...prev, amount: value };
-      });
-    }
+    if (!formField) return;
+    setBankDetailsForm((prev) => ({ ...prev, [formField]: value }));
   };
 
   const handleSubmitForm = async () => {
-    console.log('=== SUBMIT FORM STARTED ===');
-    console.log('Platform:', Platform.OS);
-    console.log('Submit button clicked!');
-    
     const { accountName, accountNumber, amount, bankName } = bankDetailsForm;
     
-    console.log('Form data:', { 
-      accountName, 
-      accountNumber, 
-      amount, 
-      bankName,
-      accountNameLength: accountName.length,
-      accountNumberLength: accountNumber.length,
-      amountLength: amount.length,
-      bankNameLength: bankName.length
-    });
-    console.log('User balance state:', userBalance);
-    console.log('Type of userBalance:', typeof userBalance);
-    
-    // Fixed validation - removed duplicate accountName check
     if (
       !accountName.trim() ||
       !amount.trim() ||
       !accountNumber.trim() ||
       !bankName.trim()
     ) {
-      console.log('Validation failed: Missing fields');
-      console.log('accountName.trim():', accountName.trim().length > 0);
-      console.log('amount.trim():', amount.trim().length > 0);
-      console.log('accountNumber.trim():', accountNumber.trim().length > 0);
-      console.log('bankName.trim():', bankName.trim().length > 0);
       Alert.alert("Error!", "Please fill all fields");
       return;
     }
 
     if (accountNumber.length !== 10) {
-      console.log('Validation failed: Account number length invalid', accountNumber.length);
       Alert.alert("Error!", "Account number must be 10 digits.");
       return;
     }
 
     const amountNum = Number(amount.trim());
-    console.log('Amount as number:', amountNum);
-    console.log('Is amount a valid number?', !isNaN(amountNum));
-    if (isNaN(amountNum)) {
-      console.log('Validation failed: Amount is not a number');
+    if (isNaN(amountNum) || amountNum <= 0) {
       Alert.alert("Error!", "Please enter a valid amount");
       return;
     }
 
-    if (amountNum <= 0) {
-      console.log('Validation failed: Amount is zero or negative');
-      Alert.alert("Error!", "Amount must be greater than zero");
-      return;
-    }
-
-    // Check if userBalance is null or undefined
-    console.log('Checking userBalance:', userBalance);
-    console.log('userBalance === null:', userBalance === null);
-    console.log('userBalance === undefined:', userBalance === undefined);
-    console.log('typeof userBalance:', typeof userBalance);
-    
     if (userBalance === null || userBalance === undefined) {
-      console.log('Validation failed: User balance not available');
       Alert.alert("Error!", "Unable to retrieve your balance. Please try again.");
       return;
     }
 
-    // Check if amount is greater than balance
-    console.log('Comparing amountNum > userBalance:', amountNum, '>', userBalance, '=', amountNum > userBalance);
     if (amountNum > userBalance) {
-      console.log('Validation failed: Insufficient balance', { 
-        amountNum, 
-        userBalance,
-        difference: amountNum - userBalance
-      });
       Alert.alert("Error!", `Balance too low for withdrawal amount. Your balance is NGN ${userBalance.toFixed(2)}`);
       return;
     }
@@ -183,115 +107,86 @@ export default function Cashout() {
       amount: amountNum,
     };
     
-    console.log('Sending request:', requestForm);
-    
     try {
       setSubmittingForm(true);
-      console.log('Making API call to /cashouts/create');
-      const response = await AUTH_API_CLIENT.post(
-        "/cashouts/create",
-        requestForm
-      );
-
-      console.log('Response status:', response.status);
-      console.log('Response data:', response.data);
-      console.log('Response headers:', response.headers);
-
+      const response = await AUTH_API_CLIENT.post("/cashouts/create", requestForm);
       if (response.status === 200) {
-        console.log('Success! Showing modal');
         setShowModal(true);
-      } else {
-        console.log('Unexpected status code:', response.status);
       }
     } catch (error: any) {
-      console.log('=== ERROR DETAILS ===');
-      console.log('Error submitting cashout request:', error);
-      console.log('Error name:', error.name);
-      console.log('Error message:', error.message);
-      console.log('Error stack:', error.stack);
-      console.log('Error response status:', error.response?.status);
-      console.log('Error response data:', error.response?.data);
-      console.log('Error response headers:', error.response?.headers);
-      
       let message = "Error, Something went wrong, try again later!";
-      
       if (error.response?.data?.message) {
         message = error.response.data.message;
       } else if (error.message) {
         message = error.message;
       }
-      
-      console.log('Setting error message:', message);
       setErrorMessage(message);
       setErrorVisible(true);
     } finally {
-      console.log('Setting submittingForm to false');
       setSubmittingForm(false);
     }
-    
-    console.log('=== SUBMIT FORM ENDED ===');
   };
 
   return (
-    <View style={globalStyles.screen}>
-      <EarningsBalanceView userBalance={userBalance} />
-      <SuccessModal showModal={showModal} setShowModal={setShowModal} />
-      <View>
-        <Text
-          style={{
-            fontFamily: "Inter-Bold",
-            color: colors.black,
-            fontSize: mscale(20),
-            marginTop: hscale(12),
-          }}
-        >
-          Bank Details
-        </Text>
-        {/* form */}
-        <View style={{ marginTop: hscale(20) }}>
-          {/* account name */}
-          <InputView
-            placeholder="Enter Account name"
-            setForm={(value) => {
-              console.log('Account name changed:', value);
-              handleSetForm(value, "accountName");
-            }}
-          />
-          {/* account number */}
-          <InputView
-            placeholder="Account number"
-            setForm={(value) => {
-              console.log('Account number changed:', value);
-              handleSetForm(value, "accountNumber");
-            }}
-            keyboardType="numeric"
-          />
-          {/* select bank */}
-          <SelectBankInputView handleSetForm={handleSetForm} />
-          {/* enter amount */}
-          <InputView
-            placeholder="Enter amount"
-            setForm={(value) => {
-              console.log('Amount changed:', value);
-              handleSetForm(value, "amount");
-            }}
-            keyboardType="numeric"
-          />
-        </View>
+    <KeyboardAvoidingView 
+      style={{ flex: 1, backgroundColor: "#ffffff" }} 
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <ScrollView 
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: hscale(40) }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[globalStyles.screen, { minHeight: "100%" }]}>
+          <EarningsBalanceView userBalance={userBalance} />
+          
+          <Text style={styles.sectionTitle}>
+            Bank Details
+          </Text>
+          
+          <View style={{ marginTop: hscale(20) }}>
+            <InputView
+              placeholder="Enter Account Name"
+              value={bankDetailsForm.accountName}
+              setForm={(value) => handleSetForm(value, "accountName")}
+            />
+            
+            <InputView
+              placeholder="Account Number"
+              value={bankDetailsForm.accountNumber}
+              setForm={(value) => handleSetForm(value, "accountNumber")}
+              keyboardType="numeric"
+            />
+            
+            <SelectBankInputView 
+              selectedBank={bankDetailsForm.bankName}
+              handleSetForm={handleSetForm} 
+            />
+            
+            <InputView
+              placeholder="Enter amount"
+              value={bankDetailsForm.amount}
+              setForm={(value) => handleSetForm(value, "amount")}
+              keyboardType="numeric"
+            />
+          </View>
 
-        {/* submit button */}
-        <PrimaryButton
-          text="Submit"
-          onPress={handleSubmitForm}
-          isLoading={submittingForm}
-        />
-      </View>
+          <View style={{ marginTop: hscale(20) }}>
+            <PrimaryButton
+              text="Submit"
+              onPress={handleSubmitForm}
+              isLoading={submittingForm}
+            />
+          </View>
+        </View>
+      </ScrollView>
+
+      <SuccessModal showModal={showModal} setShowModal={setShowModal} />
       <ErrorModal
         visible={errorVisible}
         message={errorMessage}
         onClose={() => setErrorVisible(false)}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -303,26 +198,20 @@ const SuccessModal = ({
   setShowModal: React.Dispatch<React.SetStateAction<boolean>>;
 }) => {
   const router = useRouter();
-  
   const handleOkPress = () => {
-    console.log('Success modal OK pressed');
     setShowModal(false);
-    // Navigate back to earnings screen
     router.back();
   };
 
   return (
     <Modal
-      animationType="slide"
+      animationType="fade"
       visible={showModal}
-      onRequestClose={() => {
-        console.log('Success modal closed');
-        setShowModal(false);
-      }}
+      onRequestClose={() => setShowModal(false)}
       transparent={true}
     >
-      <View style={styles.successModalView}>
-        <View style={styles.modal}>
+      <View style={styles.successModalOverlay}>
+        <View style={styles.successModalContent}>
           <Image
             source={require("../../assets/images/success.png")}
             style={{
@@ -331,26 +220,19 @@ const SuccessModal = ({
               marginVertical: hscale(20),
             }}
           />
-          <Text
-            style={[globalStyles.headlineText, { marginBottom: hscale(8) }]}
-          >
+          <Text style={[globalStyles.headlineText, { marginBottom: hscale(8) }]}>
             Successfully Added
           </Text>
-          <Text
-            style={[
-              globalStyles.bodyText,
-              { fontSize: mscale(14), textAlign: "center" },
-            ]}
-          >
+          <Text style={[globalStyles.bodyText, { fontSize: mscale(14), textAlign: "center" }]}>
             Your application for withdrawal has been submitted, wait for 1-2
             business working days to receive funds in your account.
           </Text>
-          <View style={{ flexDirection: "row", marginVertical: hscale(20) }}>
+          <View style={{ flexDirection: "row", marginVertical: hscale(20), alignItems: "center" }}>
             <Image
               source={require("../../assets/images/bi_question.png")}
-              style={{ height: hscale(40), aspectRatio: 1 }}
+              style={{ width: wscale(30), height: wscale(30), marginRight: wscale(10) }}
             />
-            <Text style={{ width: "85%" }}>
+            <Text style={{ flex: 1, fontFamily: "Inter-Regular", fontSize: mscale(13), color: "#555" }}>
               Delay not yet received? Send complaints to support.
             </Text>
           </View>
@@ -385,41 +267,34 @@ const InputView = ({
         value={value}
         editable={editable}
         placeholder={placeholder}
+        placeholderTextColor="#888"
         style={styles.textInput}
         cursorColor={colors.primary}
-        onChangeText={(text) => {
-          console.log(`${placeholder} changed:`, text);
-          setForm && setForm(text);
-        }}
+        onChangeText={(text) => setForm && setForm(text)}
         keyboardType={keyboardType ? keyboardType : "default"}
       />
-
-      {iconsLeft && <IconRight name="angle-down" size={20} />}
+      {iconsLeft && <IconRight name="angle-down" size={mscale(20)} color="#333" />}
     </View>
   );
 };
 
 const SelectBankInputView = ({
+  selectedBank,
   handleSetForm,
 }: {
+  selectedBank: string;
   handleSetForm: (value: string, formField: FormFields | undefined) => void;
 }) => {
-  const [selectedBank, setSelectedBank] = useState<string>("");
   const [showDropDown, setShowDropDown] = useState(false);
 
   const handleSetSelectedBank = (bank: string) => {
-    console.log('Bank selected:', bank);
-    setSelectedBank(bank);
     handleSetForm(bank, "bankName");
     setShowDropDown(false);
   };
 
   return (
-    <View style={{ position: "relative" }}>
-      <Pressable onPress={() => {
-        console.log('Bank dropdown pressed');
-        setShowDropDown(true);
-      }}>
+    <>
+      <Pressable onPress={() => setShowDropDown(true)}>
         <InputView
           editable={false}
           value={selectedBank}
@@ -427,35 +302,45 @@ const SelectBankInputView = ({
           iconsLeft={true}
         />
       </Pressable>
-      {/* dropdown view - select bank */}
-      {showDropDown && (
-        <View style={[{ height: hscale(300) }, styles.dropdownView]}>
-          <FlashList
-            estimatedItemSize={BANKS.length}
-            showsVerticalScrollIndicator={false}
-            data={BANKS}
-            renderItem={({ item }) => {
-              return (
-                <Pressable
-                  onPress={() => handleSetSelectedBank(item)}
-                  style={{
-                    flexDirection: "row",
-                    paddingVertical: hscale(12),
-                    alignItems: "center",
-                    borderBottomWidth: StyleSheet.hairlineWidth,
-                    paddingHorizontal: wscale(20),
-                    borderColor: colors.greyView,
-                  }}
-                >
-                  <BankIcon name="bank" size={20} />
-                  <Text style={styles.dropDownText}>{item}</Text>
-                </Pressable>
-              );
-            }}
-          />
-        </View>
-      )}
-    </View>
+
+      <Modal
+        visible={showDropDown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowDropDown(false)}
+      >
+        <TouchableOpacity 
+          style={styles.dropdownOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowDropDown(false)}
+        >
+          <View style={styles.dropdownModalContent}>
+            <View style={styles.dropdownHeader}>
+              <Text style={styles.dropdownTitle}>Select Bank</Text>
+              <TouchableOpacity onPress={() => setShowDropDown(false)} hitSlop={8}>
+                <FeatherIcon name="x" size={mscale(24)} color="#333" />
+              </TouchableOpacity>
+            </View>
+            <View style={{ flex: 1 }}>
+              <FlashList
+                estimatedItemSize={BANKS.length}
+                showsVerticalScrollIndicator={true}
+                data={BANKS}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => handleSetSelectedBank(item)}
+                    style={styles.dropdownItem}
+                  >
+                    <BankIcon name="bank" size={mscale(16)} color="#555" />
+                    <Text style={styles.dropDownText}>{item}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
   );
 };
 
@@ -464,139 +349,134 @@ const EarningsBalanceView = ({
 }: {
   userBalance: number | null | any;
 }) => {
-  console.log('EarningsBalanceView rendered with balance:', userBalance);
-  console.log('Type of userBalance in view:', typeof userBalance);
-  
   return (
-    <View style={styles.copyReferralCodeView}>
-      <View style={{ flex: 1 }}>
-        <Text
-          style={[
-            styles.text,
-            { fontFamily: "Inter-Bold", color: colors.black },
-          ]}
-        >
-          Earnings
+    <View style={styles.earningsBox}>
+      <Text style={styles.earningsLabel}>Earnings</Text>
+      {userBalance != null ? (
+        <Text style={styles.earningsValue}>
+          {`NGN ${userBalance.toFixed(2)}`}
         </Text>
-        {userBalance != null ? (
-          <Text
-            style={[
-              styles.text,
-              {
-                fontFamily: "Inter-Bold",
-                fontSize: mscale(20),
-              },
-            ]}
-          >
-            {`NGN ${userBalance.toFixed(2)}`}
-          </Text>
-        ) : (
-          <Text
-            style={[
-              styles.text,
-              {
-                fontFamily: "Inter-Regular",
-                fontSize: mscale(14),
-                color: colors.greyView,
-              },
-            ]}
-          >
-            Loading balance...
-          </Text>
-        )}
-      </View>
+      ) : (
+        <Text style={styles.earningsLoading}>Loading balance...</Text>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  textButton: {
-    fontFamily: "Inter-Bold",
-    fontSize: mscale(12),
-    height: hscale(32),
-    backgroundColor: colors.primary,
+  sectionTitle: {
+    fontFamily: "Inter-Medium", // Fallback handles missing fonts slightly better than Inter-Bold on some devices
+    fontWeight: "600",
+    color: "#333",
+    fontSize: mscale(18),
+    marginTop: hscale(24),
+    marginBottom: hscale(4),
+  },
+  
+  // Earnings Box matching the screenshot
+  earningsBox: {
+    backgroundColor: "#F9F4FC", // Pale purple/pink tint
+    paddingVertical: hscale(16),
     paddingHorizontal: wscale(20),
-    textAlign: "center",
-    lineHeight: hscale(32),
-    color: "#ffffff",
     borderRadius: mscale(16),
-  },
-  copyReferralCodeView: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: colors.inputFieldNew,
-    paddingVertical: hscale(12),
-    paddingHorizontal: wscale(24),
-    borderRadius: mscale(12),
     marginTop: hscale(20),
-    borderWidth: 1.5,
-    borderColor: colors.black,
+    borderWidth: 1,
+    borderColor: "#301934",
   },
-  text: {
-    fontFamily: "Inter-Regular",
-    fontSize: mscale(16),
-    color: "#5C5F62",
-  },
-  dropDownText: {
+  earningsLabel: {
     fontFamily: "Inter-Medium",
-    color: colors.black,
-    paddingVertical: hscale(12),
+    fontWeight: "500",
     fontSize: mscale(14),
-    flex: 1,
-    marginLeft: wscale(12),
+    color: "#111",
+    marginBottom: hscale(4),
   },
+  earningsValue: {
+    fontFamily: "Inter-Bold",
+    fontWeight: "700",
+    fontSize: mscale(20),
+    color: "#666",
+  },
+  earningsLoading: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    color: "#999",
+  },
+
+  // Form Inputs
   textInputView: {
-    height: hscale(60),
-    backgroundColor: colors.inputField,
-    marginBottom: hscale(12),
-    borderRadius: mscale(30),
-    paddingHorizontal: wscale(20),
+    height: hscale(56),
+    backgroundColor: "#F9EDF5", // Pale pink matching the screenshot
+    marginBottom: hscale(16),
+    borderRadius: mscale(28),
+    paddingHorizontal: wscale(24),
     flexDirection: "row",
     alignItems: "center",
   },
   textInput: {
-    fontFamily: "Inter-Medium",
-    fontSize: mscale(14),
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(15),
+    color: "#333",
     flex: 1,
+    ...Platform.select({
+      web: { outlineStyle: "none" } as any,
+    }),
   },
-  dropdownView: {
-    elevation: 5,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.7,
-    shadowRadius: 2,
-    backgroundColor: "#ffffff",
-    borderRadius: mscale(8),
-    position: "absolute",
-    top: hscale(60),
-    left: 0,
-    right: 0,
-    zIndex: 90,
-  },
-  successModalView: {
+
+  // Dropdown Modal
+  dropdownOverlay: {
     flex: 1,
-    position: "absolute",
-    zIndex: 900,
-    backgroundColor: "transparent",
-    top: 0,
-    bottom: 0,
-    inset: 0,
-    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
   },
-  modal: {
-    alignItems: "center",
+  dropdownModalContent: {
     backgroundColor: "#ffffff",
-    paddingVertical: hscale(20),
-    width: "85%",
+    borderTopLeftRadius: mscale(24),
+    borderTopRightRadius: mscale(24),
+    height: "60%",
+    paddingTop: hscale(20),
+    paddingBottom: hscale(40),
+  },
+  dropdownHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: wscale(20),
-    elevation: 5,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.7,
-    shadowRadius: 2,
-    borderRadius: mscale(8),
-    position: "relative",
-    height: hscale(500),
-    top: hscale(100),
+    marginBottom: hscale(16),
+  },
+  dropdownTitle: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(18),
+    color: "#111",
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: hscale(16),
+    paddingHorizontal: wscale(24),
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0EEF5",
+  },
+  dropDownText: {
+    fontFamily: "Inter-Regular",
+    color: "#333",
+    fontSize: mscale(15),
+    marginLeft: wscale(16),
+    flex: 1,
+  },
+
+  // Success Modal
+  successModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  successModalContent: {
+    backgroundColor: "#ffffff",
+    width: "85%",
+    borderRadius: mscale(16),
+    paddingVertical: hscale(30),
+    paddingHorizontal: wscale(24),
+    alignItems: "center",
   },
 });

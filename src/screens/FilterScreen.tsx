@@ -1,274 +1,458 @@
-import { useFocusEffect } from "@react-navigation/native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Alert, StyleSheet, Text, View, ScrollView } from "react-native";
-import { useCallback, useEffect, useState } from "react";
-import { router } from "expo-router";
-import { normalizeRemoteFileUrl } from "../helpers/normalizeRemoteFileUrl";
-import { isRemoteFileMissing } from "../helpers/isRemoteFileMissing";
+import {
+  StyleSheet,
+  Text,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  Platform,
+  Image,
+  TextInput,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import FeatherIcon from "@expo/vector-icons/Feather";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
+import { useState } from "react";
 
-import { DownloadItemView } from "../components/downloadItemView";
-import { SearchBoxView } from "../components/searchBoxView";
-import { DownloadedFileRef, FileDirectory } from "../types";
 import { hscale, mscale, wscale } from "../helpers/metric";
-import { globalStyles } from "../styles/global";
 import { colors } from "../constants/theme";
-import EmptyStateView from "../components/emptyStateView";
-import LottieView from "lottie-react-native";
+import { useCommunityStore } from "../store/useCommunityStore";
+
+// Mock Data for Trending Only (Posts moved to store)
+const TRENDING_TOPICS = [
+  { id: 1, tag: "#UNIBENvsUNILAG", desc: "Massive campus banter", posts: "34.2K" },
+  { id: 2, tag: "#SolvaPayouts", desc: "Students flexing task cash-outs", posts: "18.9K" },
+  { id: 3, tag: "#ExamPrep2026", desc: "200L Economics study packs", posts: "12.1K" },
+  { id: 4, tag: "#AsakeInOAU", desc: "Campus entertainment news", posts: "8.5K" },
+  { id: 5, tag: "#HustleTips", desc: "Creative ideas to earn money", posts: "5.1K" },
+];
 
 export default function FilterScreen() {
-  const [currentTab, setCurrentTab] = useState<FileDirectory>("Courses");
-  const [filterQuery, setFilterQuery] = useState("");
-  const [filteredList, setFilterdList] = useState<DownloadedFileRef[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  const posts = useCommunityStore((state) => state.posts);
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // useEffect(() => {
-  //   //  get all downloads via cached refs
-  //   const getDownloads = async () => {
-  //     const downloadRefs = await AsyncStorage.getItem("DownloadRefs");
-  //     const downloads: DownloadedFileRef[] = downloadRefs && JSON.parse(downloadRefs);
-
-  //     if (!filterQuery.trim().length) {
-  //       setFilterdList([]);
-  //       return;
-  //     }
-
-  //     if (currentTab === "Courses") {
-  //       const coursesFilter = downloads.filter(
-  //         (currentItem) =>
-  //           (currentItem.fileCode?.toLowerCase().includes(filterQuery.toLowerCase().trim())) || currentItem.fileName.toLowerCase().includes(filterQuery.toLowerCase().trim()) && currentItem.parentDirectory === 'Courses'
-  //       );
-  //       setFilterdList(coursesFilter);
-  //     } else if (currentTab === "Projects") {
-  //       const projectsFilter = downloads.filter(
-  //         (currentItem) =>
-  //           currentItem.parentDirectory === "Projects" &&
-  //           currentItem.fileName.toLowerCase().includes(filterQuery.toLowerCase())
-  //       );
-  //       setFilterdList(projectsFilter);
-  //     }
-  //   };
-
-  //   getDownloads();
-  // }, [filterQuery, currentTab]);
-
-  const getDownloads = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const downloadRefs = await AsyncStorage.getItem("DownloadRefs");
-      const downloads: DownloadedFileRef[] =
-        downloadRefs && JSON.parse(downloadRefs);
-
-      if (!downloads) {
-        setFilterdList([]);
-        return;
-      }
-
-      let filtered = downloads.filter(
-        (item) => item.parentDirectory === currentTab,
-      );
-
-      if (filterQuery.trim().length > 0) {
-        filtered = filtered.filter(
-          (item) =>
-            item.fileCode
-              ?.toLowerCase()
-              .includes(filterQuery.toLowerCase().trim()) ||
-            item.fileName
-              .toLowerCase()
-              .includes(filterQuery.toLowerCase().trim()),
-        );
-      }
-
-      setFilterdList(filtered);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentTab, filterQuery]);
-
-  useEffect(() => {
-    getDownloads();
-  }, [getDownloads]);
-
-  useFocusEffect(
-    useCallback(() => {
-      getDownloads();
-    }, [getDownloads]),
+  const filteredPosts = posts.filter(
+    (post) =>
+      post.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.campus.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleSearchInputTextChange = (text: string) => {
-    setFilterQuery(text);
-  };
-
-  const handleOpenItem = async (item: DownloadedFileRef) => {
-    const normalizedPath = normalizeRemoteFileUrl(item.filePath);
-
-    if (await isRemoteFileMissing(normalizedPath)) {
-      Alert.alert(
-        "File unavailable",
-        "This file link now returns 404 from storage. Download it again after the source link is fixed.",
-      );
-      return;
-    }
-
-    const lowerName = item.fileName?.toLowerCase() || "";
-    const lowerPath = normalizedPath.toLowerCase();
-    const isPdf = lowerName.endsWith(".pdf") || lowerPath.includes(".pdf");
-
-    if (isPdf) {
-      router.push({
-        pathname: "/pdf-viewer",
-        params: { pdfUri: normalizedPath },
-      });
-    } else {
-      router.push({
-        pathname: "/image-viewer",
-        params: { imageSource: normalizedPath },
-      });
-    }
-  };
-
   return (
-    <View style={globalStyles.screen}>
-      <Text style={styles.screenTitle}>Filter</Text>
-      <SearchBoxView
-        handleSearchInputTextChange={handleSearchInputTextChange}
-      />
-      <TabsSwitcher setCurrentTab={setCurrentTab} />
-      <View style={{ flex: 1 }}>
-        {isLoading ? (
-          <View
-            style={{
-              height: "100%",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <LottieView
-              autoPlay
-              style={{
-                width: wscale(50),
-                height: hscale(50),
-                alignSelf: "center",
-              }}
-              source={require("../../assets/animations/spin.json")}
-            />
-            <Text>Loading, Please wait!</Text>
-          </View>
-        ) : !filteredList.length ? (
-          // <View style={styles.centeredView}>
-          //   <View>
-          //     <Image
-          //       source={require("../../assets/images/notFound.png")}
-          //       style={{
-          //         width: wscale(200),
-          //         height: hscale(200),
-          //         marginHorizontal: "auto",
-          //       }}
-          //     />
-          //   </View>
-          //   <Text style={styles.emptyText}>
-          //     No files found.
-          //   </Text>
-          // </View>
-          <EmptyStateView />
-        ) : (
-          <ScrollView
-            style={{ flex: 1 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingVertical: hscale(40) }}
-          >
-            {filteredList.map((item, index) => (
-              <DownloadItemView
-                key={`${item.filePath}-${index}`}
-                fileCode={
-                  item.fileCode?.trim()
-                    ? `${item.fileCode.trim()}(${index + 1})`
-                    : undefined
-                }
-                source={item.filePath}
-                fileName={item.fileName}
-                parentDirectory={item.parentDirectory}
-                onItemPress={() => handleOpenItem(item)}
-              />
-            ))}
-          </ScrollView>
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      {/* ── HEADER ── */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>COMMUNITY</Text>
+        <Text style={styles.headerSubtitle}>
+          All Campuses Together <Text style={{ fontSize: mscale(16) }}>🇳🇬</Text>
+        </Text>
+      </View>
+
+      {/* ── SEARCH BAR ── */}
+      <View style={styles.searchContainer}>
+        <FeatherIcon name="search" size={mscale(18)} color="#999" style={{ marginRight: wscale(8) }} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search what's going on..."
+          placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery("")} hitSlop={8}>
+            <FeatherIcon name="x" size={mscale(18)} color="#999" />
+          </TouchableOpacity>
         )}
       </View>
-    </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── TRENDING CARD ── */}
+        <View style={styles.trendingCard}>
+          {/* Top Line */}
+          <View style={styles.trendingHeader}>
+            <Text style={styles.trendingTitle}>TRENDING ON CAMPUS</Text>
+            <MaterialCommunityIcons name="fire" size={mscale(16)} color="#C026D3" />
+          </View>
+          <Text style={styles.trendingSubtitle}>
+            RANKED 1 TO 5 - REAL-TIME STUDENT BUZZ
+          </Text>
+
+          {/* Trending Items */}
+          <View style={styles.trendingList}>
+            {TRENDING_TOPICS.map((item) => (
+              <View key={item.id} style={styles.trendingItem}>
+                <Text style={styles.trendingRank}>{item.id}.</Text>
+                <View style={styles.trendingTextContainer}>
+                  <Text style={styles.trendingTag}>{item.tag}</Text>
+                  <Text style={styles.trendingDesc}>
+                    {`{${item.desc} • ${item.posts} posts}`}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* ── POSTS ── */}
+        <View style={styles.postsContainer}>
+          {filteredPosts.length > 0 ? (
+            filteredPosts.map((post) => (
+              <TouchableOpacity 
+                key={post.id} 
+                style={styles.postCard}
+                activeOpacity={0.8}
+                onPress={() => router.push("/post-details")}
+              >
+                {/* Post Header */}
+                <View style={styles.postHeader}>
+                  <Image source={{ uri: post.avatar }} style={styles.avatar} />
+                  <View style={styles.postMetaInfo}>
+                    <View style={styles.authorRow}>
+                      <Text style={styles.authorName}>
+                        {post.author} • {post.campus}
+                      </Text>
+                      {post.badge === "blue-check" ? (
+                        <MaterialCommunityIcons
+                          name="check-decagram"
+                          size={mscale(14)}
+                          color="#1DA1F2"
+                          style={{ marginLeft: 4 }}
+                        />
+                      ) : post.badge === "pink-star" ? (
+                        <MaterialCommunityIcons
+                          name="star-circle"
+                          size={mscale(14)}
+                          color="#D81B60"
+                          style={{ marginLeft: 4 }}
+                        />
+                      ) : null}
+                    </View>
+                    <Text style={styles.postDate}>{post.date}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.moreBtn} hitSlop={8}>
+                    <FeatherIcon name="more-horizontal" size={mscale(18)} color="#999" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Post Content */}
+                <Text style={styles.postContent}>
+                  {post.highlight ? post.content.split(post.highlight).map((part, index, arr) => (
+                    <Text key={index}>
+                      {part}
+                      {index < arr.length - 1 && (
+                        <Text
+                          style={[
+                            styles.postHighlight,
+                            { color: post.badge === "blue-check" ? "#D81B60" : colors.primary },
+                          ]}
+                        >
+                          {post.highlight}
+                        </Text>
+                      )}
+                    </Text>
+                  )) : post.content}
+                </Text>
+
+                {/* Attached Image (If any) */}
+                {post.image && (
+                   <Image source={{ uri: post.image }} style={styles.postAttachedImage} />
+                )}
+
+                {/* Views */}
+                {post.views && (
+                  <View style={styles.viewsContainer}>
+                    <Text style={styles.viewsCount}>{post.views}</Text>
+                    <Text style={styles.viewsLabel}> Views</Text>
+                  </View>
+                )}
+
+                {/* Action Buttons */}
+                <View style={styles.actionsRow}>
+                  <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
+                    <FeatherIcon name="message-square" size={mscale(18)} color="#888" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
+                    <FeatherIcon name="repeat" size={mscale(18)} color="#888" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
+                    <FeatherIcon name="heart" size={mscale(18)} color="#888" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
+                    <FeatherIcon name="share" size={mscale(18)} color="#888" />
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={styles.emptyContainer}>
+              <FeatherIcon name="search" size={mscale(40)} color="#ccc" style={{ marginBottom: hscale(12) }} />
+              <Text style={styles.emptyText}>No results found for "{searchQuery}"</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* ── FLOATING ACTION BUTTON ── */}
+      <TouchableOpacity 
+        style={styles.fab} 
+        activeOpacity={0.8}
+        onPress={() => router.push("/create-post")}
+      >
+        <FeatherIcon name="plus" size={mscale(24)} color="#fff" />
+      </TouchableOpacity>
+    </SafeAreaView>
   );
 }
 
-const TabsSwitcher = ({
-  setCurrentTab,
-}: {
-  setCurrentTab: React.Dispatch<React.SetStateAction<FileDirectory>>;
-}) => {
-  const tabs: FileDirectory[] = ["Courses", "Projects"];
-  const [activeTab, setActiveTab] = useState<FileDirectory>("Courses");
-
-  const handleSwitchTab = (pressedTab: FileDirectory) => {
-    setActiveTab(pressedTab);
-    setCurrentTab(pressedTab);
-  };
-
-  return (
-    <View style={styles.tabSwitcherView}>
-      {tabs.map((currentTabItem) => (
-        <Text
-          style={[
-            styles.tabItem,
-            activeTab === currentTabItem
-              ? { color: colors.black, backgroundColor: "#B6ACE6" }
-              : null,
-          ]}
-          key={currentTabItem}
-          onPress={() => handleSwitchTab(currentTabItem)}
-        >
-          {currentTabItem}
-        </Text>
-      ))}
-    </View>
-  );
-};
-
 const styles = StyleSheet.create({
-  screenTitle: {
-    fontFamily: "Inter-Regular",
-    fontSize: 24,
-    color: colors.black,
-    textAlign: "left",
-    paddingTop: hscale(20),
-    marginBottom: hscale(10),
-  },
-  tabSwitcherView: {
-    flexDirection: "row",
-    gap: 20,
-  },
-  tabItem: {
-    fontFamily: "Inter-Medium",
-    fontSize: mscale(16),
-    color: colors.black,
-    marginTop: hscale(20),
-    padding: mscale(12),
-    borderRadius: mscale(4),
-  },
-  centeredView: {
+  container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    height: "100%",
+    backgroundColor: "#FAFAFA",
   },
-  loadingText: {
+  
+  // ── Header ──
+  header: {
+    alignItems: "center",
+    paddingTop: hscale(20),
+    paddingBottom: hscale(12),
+  },
+  headerTitle: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(22),
+    color: "#301934", // Dark purple
+    letterSpacing: 0.5,
+  },
+  headerSubtitle: {
     fontFamily: "Inter-Regular",
-    fontSize: mscale(16),
-    color: colors.bodyText,
+    fontSize: mscale(14),
+    color: "#666",
+    marginTop: hscale(4),
+  },
+
+  // ── Search Bar ──
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F0F7", // Pale grey-purple
+    marginHorizontal: wscale(20),
+    marginBottom: hscale(12),
+    borderRadius: mscale(22),
+    paddingHorizontal: wscale(16),
+    height: hscale(44),
+    borderWidth: 1,
+    borderColor: "#EBE6F2",
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    color: "#333",
+    paddingVertical: 0,
+    ...Platform.select({
+      web: { outlineStyle: "none" } as any,
+    }),
+  },
+
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: wscale(20),
+    paddingBottom: hscale(100), // Space for FAB and bottom tabs
+  },
+
+  // ── Trending Card ──
+  trendingCard: {
+    backgroundColor: "#fff",
+    borderRadius: mscale(12),
+    borderWidth: 1.5,
+    borderColor: "#C026D3", // Magenta/pink border
+    padding: mscale(20),
+    marginTop: hscale(10),
+    marginBottom: hscale(24),
+    shadowColor: "#000",
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  trendingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: hscale(4),
+    gap: wscale(6),
+  },
+  trendingTitle: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(12),
+    color: "#301934", // Deep purple
+    letterSpacing: 0.5,
+  },
+  trendingSubtitle: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(10),
+    color: "#999",
+    marginBottom: hscale(16),
+  },
+  trendingList: {
+    gap: hscale(16),
+  },
+  trendingItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  trendingRank: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(14),
+    color: "#CBA4DC", // Light purple
+    width: wscale(20),
+    marginTop: hscale(2),
+  },
+  trendingTextContainer: {
+    flex: 1,
+  },
+  trendingTag: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(14),
+    color: "#4A148C", // Dark purple
+    marginBottom: hscale(4),
+  },
+  trendingDesc: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(12),
+    color: "#888",
+  },
+
+  // ── Posts ──
+  postsContainer: {
+    gap: hscale(16),
+  },
+  postCard: {
+    backgroundColor: "#fff",
+    borderRadius: mscale(16),
+    padding: mscale(16),
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+    shadowColor: "#000",
+    shadowOpacity: 0.02,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  postHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: hscale(12),
+  },
+  avatar: {
+    width: wscale(40),
+    height: wscale(40),
+    borderRadius: wscale(20),
+    borderWidth: 1,
+    borderColor: "#5E17EB",
+  },
+  postMetaInfo: {
+    flex: 1,
+    marginLeft: wscale(12),
+    justifyContent: "center",
+  },
+  authorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: hscale(2),
+  },
+  authorName: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(14),
+    color: "#301934", // Dark purple
+  },
+  postDate: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(11),
+    color: "#999",
+  },
+  moreBtn: {
+    padding: 4,
+  },
+  postContent: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    color: "#333",
+    lineHeight: mscale(22),
+    marginBottom: hscale(16),
+  },
+  postAttachedImage: {
+    width: "100%",
+    height: hscale(200),
+    borderRadius: mscale(12),
+    marginBottom: hscale(16),
+    backgroundColor: "#F0EEF5",
+  },
+  postHighlight: {
+    fontFamily: "Inter-Medium",
+  },
+  viewsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: hscale(16),
+  },
+  viewsCount: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(12),
+    color: "#5E17EB", // Purple
+  },
+  viewsLabel: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(12),
+    color: "#999",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: wscale(8),
+    borderTopWidth: 1,
+    borderTopColor: "#FAFAFA",
+    paddingTop: hscale(12),
+  },
+  actionBtn: {
+    padding: mscale(6),
+  },
+
+  // Empty Results
+  emptyContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: hscale(40),
   },
   emptyText: {
     fontFamily: "Inter-Regular",
     fontSize: mscale(14),
-    color: colors.bodyText,
+    color: "#999",
     textAlign: "center",
-    paddingHorizontal: 20,
+  },
+
+  // ── FAB ──
+  fab: {
+    position: "absolute",
+    right: wscale(20),
+    bottom: hscale(20),
+    width: wscale(56),
+    height: wscale(56),
+    borderRadius: wscale(28),
+    backgroundColor: "#5E17EB", // Solva purple
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#5E17EB",
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
 });
