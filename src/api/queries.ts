@@ -36,19 +36,19 @@ export const getUserSubscriptionStatus = async () => {
 
 /** Fetch all community posts (feed) */
 export const fetchCommunityPosts = async () => {
-  const response = await AUTH_API_CLIENT.get("/posts");
+  const response = await AUTH_API_CLIENT.get("/community");
   return response.data?.data ?? response.data ?? [];
 };
 
 /** Fetch a single post with its comments by ID */
 export const fetchPostById = async (id: string) => {
-  const response = await AUTH_API_CLIENT.get(`/posts/${id}`);
+  const response = await AUTH_API_CLIENT.get(`/community/${id}`);
   return response.data?.data ?? response.data ?? null;
 };
 
 /** Create a new community post (text + optional image) */
 export const createCommunityPost = async (formData: FormData) => {
-  const response = await AUTH_API_CLIENT.post("/posts", formData, {
+  const response = await AUTH_API_CLIENT.post("/community", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return response.data;
@@ -56,7 +56,7 @@ export const createCommunityPost = async (formData: FormData) => {
 
 /** Toggle like on a post */
 export const likePost = async (id: string) => {
-  const response = await AUTH_API_CLIENT.post(`/posts/like/${id}`);
+  const response = await AUTH_API_CLIENT.post(`/community/like/${id}`);
   return response.data;
 };
 
@@ -68,7 +68,7 @@ export const commentOnPost = async ({
   id: string;
   message: string;
 }) => {
-  const response = await AUTH_API_CLIENT.post(`/posts/comment/${id}`, {
+  const response = await AUTH_API_CLIENT.post(`/community/comment/${id}`, {
     message,
   });
   return response.data;
@@ -77,20 +77,20 @@ export const commentOnPost = async ({
 /** Toggle like on a comment */
 export const likeComment = async (commentId: string) => {
   const response = await AUTH_API_CLIENT.post(
-    `/posts/comment/like/${commentId}`
+    `/community/comment/like/${commentId}`
   );
   return response.data;
 };
 
 /** Delete a post (own posts only) */
 export const deletePost = async (id: string) => {
-  const response = await AUTH_API_CLIENT.delete(`/posts/${id}`);
+  const response = await AUTH_API_CLIENT.delete(`/community/${id}`);
   return response.data;
 };
 
 /** Fetch trending hashtags (server-ranked) */
 export const fetchTrendingTopics = async () => {
-  const response = await AUTH_API_CLIENT.get("/posts/trending");
+  const response = await AUTH_API_CLIENT.get("/community/trending");
   return response.data?.data ?? response.data ?? [];
 };
 
