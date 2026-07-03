@@ -5,8 +5,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { AUTH_API_CLIENT } from "@/src/api/apiClient";
 import { useCallback, useState } from "react";
 import { MaterialIcons, Entypo, FontAwesome } from "@expo/vector-icons";
+import { Toast } from "toastify-react-native";
 import { UserProfile } from "@/src/types";
-
 import { hscale, mscale, wscale } from "../../helpers/metric";
 import PrimaryButton from "../../components/primaryButton";
 import { useAuthStore } from "../../stores/authStore";
@@ -70,22 +70,16 @@ const [confirmPassword, setConfirmPassword] = useState("");
         userProfile.fullName &&
         userProfile.fullName.trim().split(" ").length < 2
       ) {
-        Alert.alert(
-          "Invalid user name",
-          "Kindly provide your first and last name, e.g John Doe"
-        );
+        Toast.error("Kindly provide your first and last name, e.g John Doe");
         return false;
       }
       if (userProfile.email && !emailRegex.test(userProfile.email.trim())) {
-        Alert.alert(
-          "Invalid email address",
-          "Kindly provide a valid email address"
-        );
+        Toast.error("Kindly provide a valid email address");
         return false;
       }
       if (password || confirmPassword) {
         if (password !== confirmPassword) {
-          Alert.alert("Password mismatch", "Passwords do not match.");
+          Toast.error("Passwords do not match.");
           return false;
         }
       }
@@ -132,7 +126,7 @@ const [confirmPassword, setConfirmPassword] = useState("");
       }));
       await AsyncStorage.setItem("User", JSON.stringify(user));
       console.log("user updated", user);
-      Alert.alert("Profile Updated successfully!");
+      Toast.success("Profile Updated successfully!");
     }
   } catch (error) {
     let message =

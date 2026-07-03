@@ -20,6 +20,8 @@ import { FlashList } from "@shopify/flash-list";
 import { Image } from "expo-image";
 import { useState, useEffect } from "react";
 import FeatherIcon from "@expo/vector-icons/Feather";
+import { Ionicons } from "@expo/vector-icons";
+import ToastManager, { Toast } from "toastify-react-native";
 
 import { hscale, mscale, wscale } from "../helpers/metric";
 import PrimaryButton from "../components/primaryButton";
@@ -75,28 +77,28 @@ export default function Cashout() {
       !accountNumber.trim() ||
       !bankName.trim()
     ) {
-      Alert.alert("Error!", "Please fill all fields");
+      Toast.error("Please fill all fields");
       return;
     }
 
     if (accountNumber.length !== 10) {
-      Alert.alert("Error!", "Account number must be 10 digits.");
+      Toast.error("Account number must be 10 digits.");
       return;
     }
 
     const amountNum = Number(amount.trim());
     if (isNaN(amountNum) || amountNum <= 0) {
-      Alert.alert("Error!", "Please enter a valid amount");
+      Toast.error("Please enter a valid amount");
       return;
     }
 
     if (userBalance === null || userBalance === undefined) {
-      Alert.alert("Error!", "Unable to retrieve your balance. Please try again.");
+      Toast.error("Unable to retrieve your balance. Please try again.");
       return;
     }
 
     if (amountNum > userBalance) {
-      Alert.alert("Error!", `Balance too low for withdrawal amount. Your balance is NGN ${userBalance.toFixed(2)}`);
+      Toast.error(`Balance too low. Your balance is NGN ${userBalance.toFixed(2)}`);
       return;
     }
 
@@ -128,54 +130,85 @@ export default function Cashout() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1, backgroundColor: "#ffffff" }} 
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#F0EDF6" }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <ScrollView 
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: hscale(40) }}
+      <ToastManager />
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: hscale(48) }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={[globalStyles.screen, { minHeight: "100%" }]}>
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <FeatherIcon name="arrow-left" size={22} color="#1A1A2E" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Cashout</Text>
+        </View>
+
+        <View style={{ paddingHorizontal: wscale(20) }}>
+          {/* ── Total Earnings Card ── */}
           <EarningsBalanceView userBalance={userBalance} />
-          
-          <Text style={styles.sectionTitle}>
-            Bank Details
-          </Text>
-          
-          <View style={{ marginTop: hscale(20) }}>
+
+          {/* ── Bank Details ── */}
+          <Text style={styles.sectionTitle}>Bank Details</Text>
+
+          <View style={{ marginTop: hscale(16) }}>
+            {/* Account Name */}
+            <Text style={styles.fieldLabel}>Account Name</Text>
             <InputView
               placeholder="Enter Account Name"
               value={bankDetailsForm.accountName}
               setForm={(value) => handleSetForm(value, "accountName")}
             />
-            
+
+            {/* Account Number */}
+            <Text style={styles.fieldLabel}>Account Number</Text>
             <InputView
               placeholder="Account Number"
               value={bankDetailsForm.accountNumber}
               setForm={(value) => handleSetForm(value, "accountNumber")}
               keyboardType="numeric"
             />
-            
-            <SelectBankInputView 
+
+            {/* Bank */}
+            <Text style={styles.fieldLabel}>Bank</Text>
+            <SelectBankInputView
               selectedBank={bankDetailsForm.bankName}
-              handleSetForm={handleSetForm} 
+              handleSetForm={handleSetForm}
             />
-            
+
+            {/* Withdrawal Amount */}
+            <Text style={styles.fieldLabel}>Withdrawal Amount</Text>
             <InputView
               placeholder="Enter amount"
               value={bankDetailsForm.amount}
               setForm={(value) => handleSetForm(value, "amount")}
               keyboardType="numeric"
+              showNairaPrefix
             />
+            <Text style={styles.minNote}>Minimum withdrawal: ₦1000.00</Text>
           </View>
 
-          <View style={{ marginTop: hscale(20) }}>
-            <PrimaryButton
-              text="Submit"
-              onPress={handleSubmitForm}
-              isLoading={submittingForm}
-            />
+          {/* ── Submit Button ── */}
+          <TouchableOpacity
+            style={[styles.submitBtn, submittingForm && { opacity: 0.75 }]}
+            onPress={handleSubmitForm}
+            disabled={submittingForm}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.submitBtnText}>
+              {submittingForm ? "Submitting..." : "Submit Request"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* ── Info Banner ── */}
+          <View style={styles.infoBanner}>
+            <Ionicons name="information-circle-outline" size={mscale(20)} color={colors.primary} style={{ marginRight: wscale(10), marginTop: 2 }} />
+            <Text style={styles.infoText}>
+              Cashout requests are typically processed within 48-72 hours. Ensure your bank details are correct to avoid delays.
+            </Text>
           </View>
         </View>
       </ScrollView>
@@ -251,6 +284,7 @@ interface InputViewProps {
   setForm?: (value: string) => void;
   keyboardType?: KeyboardTypeOptions;
   iconsLeft?: boolean;
+  showNairaPrefix?: boolean;
 }
 
 const InputView = ({
@@ -260,20 +294,24 @@ const InputView = ({
   setForm,
   keyboardType,
   iconsLeft = false,
+  showNairaPrefix = false,
 }: InputViewProps) => {
   return (
     <View style={styles.textInputView}>
+      {showNairaPrefix && (
+        <Text style={styles.nairaPrefix}>₦</Text>
+      )}
       <TextInput
         value={value}
         editable={editable}
         placeholder={placeholder}
-        placeholderTextColor="#888"
+        placeholderTextColor="#BBBBC0"
         style={styles.textInput}
         cursorColor={colors.primary}
         onChangeText={(text) => setForm && setForm(text)}
         keyboardType={keyboardType ? keyboardType : "default"}
       />
-      {iconsLeft && <IconRight name="angle-down" size={mscale(20)} color="#333" />}
+      {iconsLeft && <FeatherIcon name="chevron-down" size={mscale(18)} color="#888" />}
     </View>
   );
 };
@@ -351,50 +389,80 @@ const EarningsBalanceView = ({
 }) => {
   return (
     <View style={styles.earningsBox}>
-      <Text style={styles.earningsLabel}>Earnings</Text>
-      {userBalance != null ? (
-        <Text style={styles.earningsValue}>
-          {`NGN ${userBalance.toFixed(2)}`}
-        </Text>
-      ) : (
-        <Text style={styles.earningsLoading}>Loading balance...</Text>
-      )}
+      <View style={styles.earningsAccent} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.earningsLabel}>TOTAL EARNINGS</Text>
+        {userBalance != null ? (
+          <Text style={styles.earningsValue}>
+            <Text style={styles.earningsCurrencySmall}>NGN</Text>
+            {` ${userBalance.toFixed(2)}`}
+          </Text>
+        ) : (
+          <Text style={styles.earningsLoading}>Loading balance...</Text>
+        )}
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  sectionTitle: {
-    fontFamily: "Inter-Medium", // Fallback handles missing fonts slightly better than Inter-Bold on some devices
-    fontWeight: "600",
-    color: "#333",
-    fontSize: mscale(18),
-    marginTop: hscale(24),
-    marginBottom: hscale(4),
-  },
-  
-  // Earnings Box matching the screenshot
-  earningsBox: {
-    backgroundColor: "#F9F4FC", // Pale purple/pink tint
-    paddingVertical: hscale(16),
+  // ── Header ──
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: wscale(20),
+    paddingTop: hscale(16),
+    paddingBottom: hscale(12),
+    gap: wscale(14),
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(18),
+    color: "#1A1A2E",
+  },
+
+  // ── Earnings card ──
+  earningsBox: {
+    flexDirection: "row",
+    backgroundColor: "#F5EEF9",
     borderRadius: mscale(16),
-    marginTop: hscale(20),
-    borderWidth: 1,
-    borderColor: "#301934",
+    marginBottom: hscale(28),
+    marginTop: hscale(8),
+    overflow: "hidden",
+    paddingVertical: hscale(20),
+    paddingHorizontal: wscale(20),
+  },
+  earningsAccent: {
+    width: 5,
+    backgroundColor: colors.primary,
+    borderRadius: 4,
+    marginRight: wscale(16),
   },
   earningsLabel: {
-    fontFamily: "Inter-Medium",
-    fontWeight: "500",
-    fontSize: mscale(14),
-    color: "#111",
-    marginBottom: hscale(4),
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(11),
+    color: "#888",
+    letterSpacing: 1.1,
+    marginBottom: hscale(6),
+    textTransform: "uppercase",
   },
   earningsValue: {
     fontFamily: "Inter-Bold",
-    fontWeight: "700",
-    fontSize: mscale(20),
-    color: "#666",
+    fontSize: mscale(30),
+    color: colors.primary,
+    lineHeight: mscale(36),
+  },
+  earningsCurrencySmall: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(16),
+    color: colors.primary,
   },
   earningsLoading: {
     fontFamily: "Inter-Regular",
@@ -402,15 +470,40 @@ const styles = StyleSheet.create({
     color: "#999",
   },
 
-  // Form Inputs
+  // ── Section title ──
+  sectionTitle: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(22),
+    color: "#1A1A2E",
+    marginBottom: hscale(4),
+  },
+
+  // ── Field label ──
+  fieldLabel: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(13),
+    color: "#888",
+    marginBottom: hscale(6),
+    marginLeft: wscale(4),
+  },
+
+  // ── Text inputs ──
   textInputView: {
-    height: hscale(56),
-    backgroundColor: "#F9EDF5", // Pale pink matching the screenshot
-    marginBottom: hscale(16),
-    borderRadius: mscale(28),
-    paddingHorizontal: wscale(24),
+    height: hscale(52),
+    backgroundColor: "#FFFFFF",
+    marginBottom: hscale(18),
+    borderRadius: mscale(12),
+    paddingHorizontal: wscale(16),
     flexDirection: "row",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#E8E0F0",
+  },
+  nairaPrefix: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(16),
+    color: "#555",
+    marginRight: wscale(6),
   },
   textInput: {
     fontFamily: "Inter-Regular",
@@ -422,7 +515,51 @@ const styles = StyleSheet.create({
     }),
   },
 
-  // Dropdown Modal
+  // ── Min note ──
+  minNote: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(12),
+    color: "#888",
+    marginTop: -hscale(10),
+    marginBottom: hscale(28),
+    marginLeft: wscale(4),
+  },
+
+  // ── Submit button ──
+  submitBtn: {
+    backgroundColor: "#3D006E",
+    borderRadius: mscale(32),
+    paddingVertical: hscale(18),
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: hscale(20),
+  },
+  submitBtnText: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(17),
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
+  },
+
+  // ── Info banner ──
+  infoBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FDF0F5",
+    borderRadius: mscale(12),
+    paddingVertical: hscale(14),
+    paddingHorizontal: wscale(16),
+    marginBottom: hscale(20),
+  },
+  infoText: {
+    flex: 1,
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(13),
+    color: "#555",
+    lineHeight: mscale(20),
+  },
+
+  // ── Dropdown Modal ──
   dropdownOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -464,7 +601,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Success Modal
+  // ── Success Modal ──
   successModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",

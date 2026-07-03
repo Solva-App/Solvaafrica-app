@@ -69,14 +69,14 @@ export default function EarningScreen() {
   );
 
   return (
-    <View style={globalStyles.screen}>
+    <View style={[globalStyles.screen, { backgroundColor: "#F0EDF6", paddingHorizontal: wscale(16) }]}>
       <ToastManager />
       <Tabs setActiveTab={setActiveTab} activeTab={activeTab} />
 
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: hscale(20) }}
+        contentContainerStyle={{ paddingBottom: hscale(32) }}
       >
         {activeTab === "Refer" && <ReferTabView />}
         {activeTab === "Earn" && <EarnTabView userBalance={userBalance} />}
@@ -101,60 +101,35 @@ const EarnTabView = ({ userBalance }: { userBalance: number | null }) => {
           setJobs(response.data.data);
         }
       } catch (error) {
-        console.error("Job fetch error:", error);
         setErrorMessage("Something went wrong while fetching jobs!");
         setErrorVisible(true);
       } finally {
         setLoading(false);
       }
     };
-
     getJobs();
   }, []);
-  console.log("bug");
-
-  console.log(jobs);
 
   return (
     <ProtectPage>
       <View>
         <EarningsBalanceView userBalance={userBalance} />
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: hscale(20),
-          }}
-        >
-          <Text
-            style={{
-              fontSize: mscale(24),
-              fontFamily: "Inter-Bold",
-              color: colors.black,
-            }}
-          >
-            Job Offers
-          </Text>
+
+        {/* Job Offers Header */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Job Offers</Text>
           <TouchableOpacity onPress={() => router.push("/job-offers")}>
-            <Text
-              style={{
-                fontSize: mscale(15),
-                fontFamily: "Inter-Medium",
-                color: colors.primary,
-              }}
-            >
-              View all
-            </Text>
+            <Text style={styles.viewAll}>View all</Text>
           </TouchableOpacity>
         </View>
+
         {loading ? (
-          <ActivityIndicator size="large" color={colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: hscale(32) }} />
         ) : (
-          <FlatList
-            data={Array.isArray(jobs) ? jobs.slice(0, 3) : []}
-            renderItem={({ item }) => (
+          <View style={styles.jobList}>
+            {(Array.isArray(jobs) ? jobs.slice(0, 5) : []).map((item, index) => (
               <TouchableOpacity
+                key={item.id.toString()}
                 onPress={() =>
                   router.push({
                     pathname: "/job-details",
@@ -162,86 +137,38 @@ const EarnTabView = ({ userBalance }: { userBalance: number | null }) => {
                   })
                 }
               >
-                <View
-                  style={{
-                    padding: mscale(16),
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    gap: mscale(10),
-                    borderBottomWidth: 0.5,
-                    borderBottomColor: "#5C5F62",
-                  }}
-                >
-                  <View>
-                    <Text
-                      style={{
-                        fontFamily: "Inter-Bold",
-                        color: colors.black,
-                        fontSize: mscale(20),
-                      }}
-                    >
-                      {item.title}
-                    </Text>
-                    <Text
-                      style={{
-                        fontFamily: "Inter-Medium",
-                        color: colors.primary,
-                        fontSize: mscale(15),
-                        textTransform: "capitalize",
-                      }}
-                    >
-                      {item.status[0] || "N/A"}
-                    </Text>
+                <View style={[styles.jobCard, index > 0 && styles.jobCardBorder]}>
+                  <View style={styles.jobCardContent}>
+                    <Text style={styles.jobTitle}>{item.title}</Text>
+                    <View style={styles.jobMeta}>
+                      {item.status?.[0] && (
+                        <View style={styles.statusBadge}>
+                          <Text style={styles.statusText}>{item.status[0]}</Text>
+                        </View>
+                      )}
+                      <View style={styles.jobDateRow}>
+                        <Icon name="calendar-o" size={mscale(12)} color="#888" style={{ marginRight: 4 }} />
+                        <Text style={styles.jobDate}>
+                          {new Date(item.createdAt).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                  <View>
-                    <Text
-                      style={{
-                        fontFamily: "Inter-Medium",
-                        color: "#5C5F62",
-                        marginBottom: hscale(4),
-                        fontSize: mscale(13),
-                        textAlign: "right",
-                      }}
-                    >
-                      Job posting date:
-                    </Text>
-                    <Text
-                      style={{
-                        fontFamily: "Inter-Medium",
-                        color: colors.black,
-                        textAlign: "right",
-                        fontSize: mscale(15),
-                      }}
-                    >
-                      {new Date(item.createdAt).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </Text>
+                  {/* Arrow button */}
+                  <View style={styles.arrowBtn}>
+                    <Icon name="chevron-right" size={mscale(14)} color={colors.primary} />
                   </View>
                 </View>
               </TouchableOpacity>
+            ))}
+            {!loading && jobs.length === 0 && (
+              <Text style={styles.emptyText}>No job offers available at the moment.</Text>
             )}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={{ paddingBottom: hscale(20) }}
-            ListEmptyComponent={
-              <Text
-                style={{
-                  textAlign: "center",
-                  marginTop: hscale(20),
-                  fontFamily: "Inter-Regular",
-                  color: colors.black,
-                }}
-              >
-                No job offers available at the moment.
-              </Text>
-            }
-            scrollEnabled={false}
-            showsVerticalScrollIndicator={false}
-            showsHorizontalScrollIndicator={false}
-            style={{ marginTop: hscale(10) }}
-          />
+          </View>
         )}
 
         <ErrorModal
@@ -507,57 +434,29 @@ const Tabs = ({
   setActiveTab: React.Dispatch<React.SetStateAction<Tab>>;
   activeTab: Tab;
 }) => {
-  const tabEarn: Tab = "Earn";
-  const tabRefer: Tab = "Refer";
   return (
     <View style={styles.tabButtonsView}>
       <Pressable
         style={[
-          styles.tabView,
-          {
-            backgroundColor: activeTab === "Refer" ? colors.primary : undefined,
-          },
+          styles.tabPill,
+          activeTab === "Refer" && styles.tabPillActive,
         ]}
         onPress={() => setActiveTab("Refer")}
       >
-        <Text
-          style={[
-            {
-              fontFamily: "Inter-Bold",
-              fontSize: mscale(16),
-              textAlign: "center",
-            },
-            {
-              color: activeTab === "Refer" ? "#ffffff" : undefined,
-            },
-          ]}
-        >
-          {tabRefer}
+        <Text style={[styles.tabPillText, activeTab === "Refer" && styles.tabPillTextActive]}>
+          Refer
         </Text>
       </Pressable>
 
       <Pressable
         style={[
-          styles.tabView,
-          {
-            backgroundColor: activeTab === "Earn" ? colors.primary : undefined,
-          },
+          styles.tabPill,
+          activeTab === "Earn" && styles.tabPillActive,
         ]}
         onPress={() => setActiveTab("Earn")}
       >
-        <Text
-          style={[
-            {
-              fontFamily: "Inter-Bold",
-              fontSize: mscale(16),
-              textAlign: "center",
-            },
-            {
-              color: activeTab === "Earn" ? "#ffffff" : colors.black,
-            },
-          ]}
-        >
-          {tabEarn}
+        <Text style={[styles.tabPillText, activeTab === "Earn" && styles.tabPillTextActive]}>
+          Earn
         </Text>
       </Pressable>
     </View>
@@ -619,46 +518,20 @@ const EarningsBalanceView = ({
   };
 
   return (
-    <View>
-      <View style={styles.copyReferralCodeView}>
-        <View style={{ flex: 1 }}>
-          <Text
-            style={[
-              styles.text,
-              {
-                fontFamily: "Inter-Bold",
-                color: colors.black,
-                fontSize: mscale(24),
-              },
-            ]}
-          >
-            Earnings
-          </Text>
-          {userBalance !== undefined && (
-            <Text
-              style={[
-                styles.text,
-                { fontSize: mscale(18), fontFamily: "Inter-Medium" },
-              ]}
-            >{`${userBalance ? userBalance?.toFixed(2) : "---"} NGN`}</Text>
-          )}
-          <Text
-            style={[
-              styles.text,
-              {
-                fontFamily: "Inter-Regular",
-                color: colors.black,
-                fontSize: mscale(12),
-              },
-            ]}
-          >
-            Minimum cashout NGN 1,000
-          </Text>
-        </View>
-        <Text style={styles.textButton} onPress={handleNavigateCashout}>
-          Cashout
+    <View style={styles.earningsCard}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.earningsLabel}>Earnings</Text>
+        <Text style={styles.earningsAmount}>
+          {userBalance !== null && userBalance !== undefined
+            ? `${Number(userBalance).toFixed(2)}`
+            : "---"}
+          {" "}<Text style={styles.earningsCurrency}>NGN</Text>
         </Text>
+        <Text style={styles.earningsMin}>Minimum cashout NGN 1,000</Text>
       </View>
+      <TouchableOpacity style={styles.cashoutBtn} onPress={handleNavigateCashout}>
+        <Text style={styles.cashoutBtnText}>Cashout</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -683,20 +556,166 @@ const SocialButton = ({
 };
 
 const styles = StyleSheet.create({
+  // ── Tab pill toggle ──
   tabButtonsView: {
-    backgroundColor: "#F5F3FF",
-    width: "100%",
-    marginHorizontal: "auto",
     flexDirection: "row",
-    borderRadius: mscale(30),
-    marginBottom: hscale(10),
+    backgroundColor: "#FFFFFF",
+    borderRadius: 30,
+    padding: 4,
+    marginBottom: hscale(20),
+    marginTop: hscale(8),
   },
-  tabView: {
-    height: hscale(48),
+  tabPill: {
     flex: 1,
+    height: hscale(44),
+    borderRadius: 26,
+    alignItems: "center",
     justifyContent: "center",
-    borderRadius: mscale(30),
   },
+  tabPillActive: {
+    backgroundColor: colors.primary,
+  },
+  tabPillText: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(15),
+    color: "#888",
+  },
+  tabPillTextActive: {
+    color: "#FFFFFF",
+  },
+
+  // ── Earnings card ──
+  earningsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: mscale(16),
+    paddingVertical: hscale(18),
+    paddingHorizontal: wscale(20),
+    marginBottom: hscale(24),
+  },
+  earningsLabel: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(13),
+    color: "#888",
+    marginBottom: hscale(4),
+  },
+  earningsAmount: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(28),
+    color: "#1A1A2E",
+    lineHeight: mscale(34),
+  },
+  earningsCurrency: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(16),
+    color: "#555",
+  },
+  earningsMin: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(11),
+    color: "#999",
+    marginTop: hscale(4),
+  },
+  cashoutBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: mscale(24),
+    paddingVertical: hscale(12),
+    paddingHorizontal: wscale(20),
+  },
+  cashoutBtnText: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(14),
+    color: "#FFFFFF",
+  },
+
+  // ── Section header ──
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: hscale(12),
+  },
+  sectionTitle: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(18),
+    color: "#1A1A2E",
+  },
+  viewAll: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(14),
+    color: colors.primary,
+  },
+
+  // ── Job list ──
+  jobList: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: mscale(16),
+    overflow: "hidden",
+  },
+  jobCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: hscale(16),
+    paddingHorizontal: wscale(16),
+  },
+  jobCardBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#E8E0F0",
+  },
+  jobCardContent: {
+    flex: 1,
+  },
+  jobTitle: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(15),
+    color: "#1A1A2E",
+    marginBottom: hscale(8),
+  },
+  jobMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  statusBadge: {
+    backgroundColor: "#F5E6F8",
+    borderRadius: 20,
+    paddingVertical: 3,
+    paddingHorizontal: 12,
+  },
+  statusText: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(12),
+    color: colors.primary,
+  },
+  jobDateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  jobDate: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(12),
+    color: "#888",
+  },
+  arrowBtn: {
+    width: wscale(34),
+    height: wscale(34),
+    borderRadius: wscale(17),
+    backgroundColor: "#F0EDF6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: wscale(8),
+  },
+  emptyText: {
+    textAlign: "center",
+    marginTop: hscale(24),
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    color: "#888",
+  },
+
+  // ── Shared ──
   text: {
     fontFamily: "Inter-regular",
     fontSize: mscale(16),
@@ -714,24 +733,22 @@ const styles = StyleSheet.create({
   copyReferralCodeView: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F3FF",
-    paddingVertical: hscale(12),
-    paddingHorizontal: wscale(24),
-    borderRadius: mscale(12),
-    marginTop: hscale(20),
-    borderWidth: 1,
-    borderColor: colors.black,
+    backgroundColor: "#FFFFFF",
+    paddingVertical: hscale(18),
+    paddingHorizontal: wscale(20),
+    borderRadius: mscale(16),
+    marginBottom: hscale(24),
   },
   textButton: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(12),
-    height: hscale(32),
+    height: hscale(36),
     backgroundColor: colors.primary,
     paddingHorizontal: wscale(20),
     textAlign: "center",
-    lineHeight: hscale(32),
+    lineHeight: hscale(36),
     color: "#ffffff",
-    borderRadius: mscale(16),
+    borderRadius: mscale(20),
   },
   socialButton: {
     backgroundColor: colors.white,

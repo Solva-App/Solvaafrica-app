@@ -7,6 +7,7 @@ import {
   Linking,
   TouchableOpacity,
   ActivityIndicator,
+  StyleSheet,
 } from "react-native";
 import React, {
   useCallback,
@@ -21,6 +22,8 @@ import { hscale, mscale, wscale } from "@/src/helpers/metric";
 import { colors } from "@/src/constants/theme";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import Entypo from "@expo/vector-icons/Entypo";
+import Feather from "@expo/vector-icons/Feather";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Carousel from "pinar";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { AUTH_API_CLIENT } from "@/src/api/apiClient";
@@ -338,280 +341,373 @@ export default function ServiceProfile() {
   console.log(user);
 
   return (
-    <ScrollView style={globalStyles.screen}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          paddingHorizontal: mscale(16),
-          paddingVertical: mscale(12),
-          backgroundColor: colors.primary,
-        }}
-      >
-        <Text
-          style={{
-            fontSize: mscale(20),
-            fontFamily: "Inter-Bold",
-            color: "#fff",
-          }}
-        >
-          {user.fullName || "Profile"}
-        </Text>
-        {/* Edit Profile Button - Only show if user is viewing their own profile */}
-        <TouchableOpacity onPress={handleEditProfilePress}>
-          <Ionicons name="create-outline" size={24} color="#fff" />
+    <ScrollView 
+      style={{ flex: 1, backgroundColor: "#FDF9FF" }}
+      contentContainerStyle={{ paddingHorizontal: wscale(20), paddingBottom: hscale(60) }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* ── Top Header / Edit Button ── */}
+      <View style={styles.headerRow}>
+        <View /> {/* spacer */}
+        <TouchableOpacity onPress={handleEditProfilePress} style={styles.editBtn}>
+          <Ionicons name="create-outline" size={20} color={colors.primary} />
+          <Text style={styles.editBtnText}>Edit</Text>
         </TouchableOpacity>
       </View>
-      <View
-        style={{
-          height: hscale(123),
-          width: wscale(123),
-          backgroundColor: "#EBEDEB80",
-          borderRadius: mscale(16),
-          alignItems: "center",
-          justifyContent: "center",
-          marginHorizontal: "auto",
-        }}
-      >
-        <Image
-          source={{ uri: user?.profilePic }}
-          style={{
-            width: 100,
-            height: 100,
-            borderRadius: 10,
-            borderColor: colors.primary,
-            borderWidth: 2,
-          }}
-          resizeMode="cover"
-        />
-      </View>
 
-      <View>
-        <Text
-          style={{
-            fontSize: mscale(16),
-            fontFamily: "Inter-Medium",
-            color: colors.black,
-            marginTop: mscale(5),
-          }}
-        >
-          About
-        </Text>
-        <Text
-          style={{
-            fontFamily: "Inter-Regular",
-            color: colors.black,
-            fontSize: mscale(14),
-            marginVertical: mscale(5),
-            lineHeight: mscale(20),
-          }}
-        >
-          {user?.bio || "No bio available"}
-        </Text>
-      </View>
-
-      <View>
-        <Text
-          style={{
-            fontSize: mscale(16),
-            fontFamily: "Inter-Medium",
-            color: colors.black,
-            marginTop: mscale(5),
-          }}
-        >
-          Location
-        </Text>
-        <Text
-          style={{
-            fontFamily: "Inter-Regular",
-            color: colors.black,
-            fontSize: mscale(14),
-            marginVertical: mscale(5),
-            lineHeight: mscale(20),
-          }}
-        >
-          {user?.location || "No location available"}
-        </Text>
-      </View>
-
-      <View>
-        <Text
-          style={{
-            fontSize: mscale(16),
-            fontFamily: "Inter-Medium",
-            color: colors.black,
-            marginTop: mscale(5),
-          }}
-        >
-          My Portfolio
-        </Text>
-        <View
-          style={{
-            borderWidth: 1,
-            borderColor: colors.primary,
-            borderRadius: mscale(10),
-            paddingHorizontal: mscale(10),
-            paddingVertical: mscale(15),
-            marginVertical: mscale(10),
-          }}
-        >
-          {user?.portfolioLink && (
-            <Pressable onPress={() => Linking.openURL(user.portfolioLink)}>
-              <Text
-                style={{
-                  textAlign: "center",
-                  color: colors.primary,
-                  fontFamily: "Inter-Medium",
-                  fontStyle: "italic",
-                }}
-              >
-                Click link to view portfolio
-              </Text>
-            </Pressable>
-          )}
+      {/* ── Profile Image & Info ── */}
+      <View style={styles.profileHeader}>
+        <View style={styles.imageContainer}>
+          <Image
+            source={{ uri: user?.profilePic || "https://via.placeholder.com/150" }}
+            style={styles.profileImage}
+            resizeMode="cover"
+          />
+          <View style={styles.verifiedBadge}>
+            <MaterialCommunityIcons name="check-decagram" size={mscale(24)} color="#C41A66" />
+          </View>
+        </View>
+        <Text style={styles.profileName}>{user.fullName || "Profile"}</Text>
+        <View style={styles.locationRow}>
+          <Ionicons name="location-outline" size={16} color="#888" />
+          <Text style={styles.locationText}>{user?.location || "No location set"}</Text>
         </View>
       </View>
 
-      <Text
-        style={{
-          color: colors.primary,
-          fontFamily: "Inter-Medium",
-          fontSize: mscale(16),
-          marginVertical: mscale(10),
-        }}
-      >
-        From: NGN {user?.startingAmount || "N/A"}
-      </Text>
-
-      <View>
-        <Text
-          style={{
-            fontSize: mscale(16),
-            fontFamily: "Inter-Medium",
-            color: colors.black,
-            marginTop: mscale(5),
-          }}
-        >
-          Contact Information
-        </Text>
-        <View
-          style={{
-            flexDirection: "row",
-            gap: mscale(20),
-            marginVertical: mscale(10),
-          }}
-        >
-          {user?.whatsappLink && (
-            <TouchableOpacity
-              onPress={() =>
-                Linking.openURL(
-                  `https://wa.me/${formatPhone(user.whatsappLink)}`,
-                )
-              }
-              style={{ alignItems: "center", gap: mscale(10) }}
-            >
-              <FontAwesome6 name="whatsapp" size={20} color="green" />
-              <Text style={{ color: "green", fontSize: mscale(16) }}>
-                WhatsApp
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {user?.phoneNumber && (
-            <TouchableOpacity
-              onPress={() =>
-                Linking.openURL(`tel:${formatPhone(user.phoneNumber)}`)
-              }
-              style={{ alignItems: "center", gap: mscale(10) }}
-            >
-              <Entypo name="phone" size={20} color="black" />
-              <Text style={{ color: "black", fontSize: mscale(16) }}>Call</Text>
-            </TouchableOpacity>
-          )}
+      {/* ── About Card ── */}
+      <View style={[styles.card, styles.leftBorderedCard]}>
+        <View style={styles.cardHeaderRow}>
+          <Feather name="user" size={18} color="#6207A0" />
+          <Text style={styles.cardTitle}>About</Text>
         </View>
+        <Text style={styles.cardBodyText}>
+          {user?.bio || "No bio available."}
+        </Text>
       </View>
 
-      <View>
-        <Text
-          style={{
-            fontSize: mscale(16),
-            fontFamily: "Inter-Medium",
-            color: colors.black,
-            marginTop: mscale(5),
-          }}
-        >
-          Reviews
+      {/* ── Starting From Card ── */}
+      <View style={styles.card}>
+        <View style={styles.startingFromHeader}>
+          <Text style={styles.startingFromLabel}>STARTING FROM</Text>
+          <Ionicons name="cash-outline" size={20} color="#C41A66" />
+        </View>
+        <Text style={styles.startingFromPrice}>
+          NGN {user?.startingAmount || "0"}
         </Text>
-        {reviewLoading ? (
-          <ActivityIndicator size="small" color={colors.primary} />
-        ) : reviews.length > 0 ? (
-          <Carousel
-            height={hscale(180)}
-            showsControls={false}
-            loop
-            activeDotStyle={{ backgroundColor: colors.primary }}
+        <Text style={styles.startingFromSub}>Per project or consultation</Text>
+      </View>
+
+      {/* ── Action Buttons ── */}
+      <View style={styles.actionButtonsRow}>
+        {user?.phoneNumber && (
+          <TouchableOpacity 
+            style={[styles.actionBtn, { backgroundColor: "#4A007C" }]}
+            onPress={() => Linking.openURL(`tel:${formatPhone(user.phoneNumber)}`)}
+            activeOpacity={0.85}
           >
-            {reviews.map((review) => (
-              <View
-                key={review.id}
-                style={{
-                  backgroundColor: "#EBEDEB80",
-                  padding: mscale(10),
-                  borderRadius: mscale(16),
-                  marginVertical: mscale(10),
-                  height: hscale(140),
-                  justifyContent: "space-between",
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: mscale(10),
-                  }}
-                >
-                  <FontAwesome name="user" size={20} color="black" />
-                  <Text
-                    style={{
-                      fontFamily: "Inter-Bold",
-                      color: "#1E1E1E",
-                      fontSize: mscale(18),
-                    }}
-                  >
-                    {review?.name}
-                  </Text>
-                </View>
-                <ScrollView
-                  showsVerticalScrollIndicator={false}
-                  style={{ flex: 1, marginTop: mscale(10) }}
-                  contentContainerStyle={{ paddingRight: 10 }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: "Inter-Regular",
-                      fontSize: mscale(16),
-                      color: colors.black,
-                    }}
-                  >
-                    {review?.message}
-                  </Text>
-                </ScrollView>
-              </View>
-            ))}
-          </Carousel>
-        ) : (
-          <Text
-            style={{
-              fontSize: mscale(14),
-              fontFamily: "Inter-Regular",
-              marginVertical: mscale(10),
-            }}
+            <Feather name="phone-call" size={16} color="#FFF" />
+            <Text style={styles.actionBtnText}>Call Now</Text>
+          </TouchableOpacity>
+        )}
+        
+        {user?.whatsappLink && (
+          <TouchableOpacity 
+            style={[styles.actionBtn, { backgroundColor: "#1CD05D" }]}
+            onPress={() => Linking.openURL(`https://wa.me/${formatPhone(user.whatsappLink)}`)}
+            activeOpacity={0.85}
           >
-            No reviews yet.
+            <FontAwesome6 name="whatsapp" size={18} color="#FFF" />
+            <Text style={styles.actionBtnText}>WhatsApp</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* ── My Portfolio ── */}
+      <View style={styles.sectionContainer}>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>My Portfolio</Text>
+          {/* <Text style={styles.sectionSubtitlePink}>14 Projects</Text> */}
+        </View>
+        
+        <TouchableOpacity 
+          style={styles.portfolioDashedCard}
+          onPress={() => user?.portfolioLink && Linking.openURL(user.portfolioLink)}
+          disabled={!user?.portfolioLink}
+          activeOpacity={0.7}
+        >
+          <View style={styles.portfolioIconCircle}>
+            <Feather name="link-2" size={20} color="#C41A66" />
+          </View>
+          <Text style={styles.portfolioLinkText}>
+            {user?.portfolioLink ? "Click link to view portfolio" : "No portfolio link provided"}
           </Text>
+          <Text style={styles.portfolioSubText}>
+            Behance • Dribbble • Personal Site
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Reviews ── */}
+      <View style={styles.sectionContainer}>
+        <Text style={styles.sectionTitle}>
+          Reviews <Text style={styles.reviewStar}>★ 4.9</Text>
+        </Text>
+
+        {reviewLoading ? (
+          <ActivityIndicator size="small" color={colors.primary} style={{ marginTop: 20 }} />
+        ) : reviews.length > 0 ? (
+          reviews.map((review, index) => (
+            <View key={review.id || index} style={[styles.card, styles.reviewCard]}>
+              <View style={styles.reviewHeader}>
+                <View style={styles.reviewAvatar}>
+                  <Feather name="user" size={16} color="#333" />
+                </View>
+                <View style={{ flex: 1, flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={styles.reviewName}>{review?.name}</Text>
+                  <Text style={styles.reviewTime}>2 days ago</Text>
+                </View>
+              </View>
+              <Text style={styles.reviewText}>
+                "{review?.message}"
+              </Text>
+            </View>
+          ))
+        ) : (
+          <Text style={styles.noReviewsText}>No reviews yet.</Text>
         )}
       </View>
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: hscale(16),
+    marginBottom: hscale(8),
+  },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F5E6FB",
+    paddingHorizontal: wscale(12),
+    paddingVertical: hscale(6),
+    borderRadius: mscale(16),
+    gap: 4,
+  },
+  editBtnText: {
+    fontFamily: "Inter-Medium",
+    color: colors.primary,
+    fontSize: mscale(13),
+  },
+  profileHeader: {
+    alignItems: "center",
+    marginBottom: hscale(24),
+  },
+  imageContainer: {
+    position: "relative",
+    marginBottom: hscale(16),
+  },
+  profileImage: {
+    width: wscale(140),
+    height: wscale(140),
+    borderRadius: mscale(24),
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+  },
+  verifiedBadge: {
+    position: "absolute",
+    bottom: -8,
+    right: -8,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 2,
+  },
+  profileName: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(24),
+    color: "#3D006E",
+    marginBottom: hscale(6),
+  },
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  locationText: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(14),
+    color: "#555",
+  },
+  card: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: mscale(16),
+    padding: mscale(20),
+    marginBottom: hscale(16),
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  leftBorderedCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: "#C41A66",
+  },
+  cardHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: wscale(8),
+    marginBottom: hscale(12),
+  },
+  cardTitle: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(18),
+    color: "#3D006E",
+  },
+  cardBodyText: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    color: "#555",
+    lineHeight: mscale(22),
+  },
+  startingFromHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: hscale(8),
+  },
+  startingFromLabel: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(11),
+    color: "#666",
+    letterSpacing: 1,
+  },
+  startingFromPrice: {
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(28),
+    color: "#3D006E",
+    marginBottom: hscale(4),
+  },
+  startingFromSub: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(12),
+    color: "#888",
+  },
+  actionButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: wscale(12),
+    marginBottom: hscale(32),
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: hscale(16),
+    borderRadius: mscale(12),
+    gap: wscale(8),
+  },
+  actionBtnText: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(15),
+    color: "#FFFFFF",
+  },
+  sectionContainer: {
+    marginBottom: hscale(24),
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: hscale(16),
+  },
+  sectionTitle: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(20),
+    color: "#3D006E",
+    marginBottom: hscale(16),
+  },
+  sectionSubtitlePink: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(13),
+    color: "#C41A66",
+  },
+  portfolioDashedCard: {
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: "#E2CFEA",
+    backgroundColor: "#FDF9FF",
+    borderRadius: mscale(16),
+    padding: mscale(24),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  portfolioIconCircle: {
+    width: wscale(48),
+    height: wscale(48),
+    borderRadius: mscale(24),
+    backgroundColor: "#FCE8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: hscale(16),
+  },
+  portfolioLinkText: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(15),
+    color: "#3D006E",
+    marginBottom: hscale(8),
+  },
+  portfolioSubText: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(12),
+    color: "#888",
+  },
+  reviewStar: {
+    color: "#C41A66",
+    fontSize: mscale(16),
+  },
+  reviewCard: {
+    backgroundColor: "#F9F5FB",
+    borderLeftWidth: 4,
+    borderLeftColor: "#C41A66",
+  },
+  reviewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: wscale(12),
+    marginBottom: hscale(12),
+  },
+  reviewAvatar: {
+    width: wscale(36),
+    height: wscale(36),
+    borderRadius: mscale(18),
+    backgroundColor: "#E8DDF0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reviewName: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(14),
+    color: "#3D006E",
+  },
+  reviewTime: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(11),
+    color: "#888",
+  },
+  reviewText: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    color: "#444",
+    lineHeight: mscale(22),
+  },
+  noReviewsText: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    color: "#888",
+  },
+});

@@ -8,100 +8,122 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import FeatherIcon from "@expo/vector-icons/Feather";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import ToastManager, { Toast } from "toastify-react-native";
 
 import { hscale, mscale, wscale } from "../helpers/metric";
-import { useState, useRef } from "react";
-
-const INITIAL_COMMENTS = [
-  {
-    id: "c1",
-    author: "Chidi",
-    campus: "UNILAG",
-    avatar: "https://i.pravatar.cc/150?img=12",
-    time: "2h",
-    content: "The speed is actually insane! Just got mine too 🚀",
-    likes: 45,
-    isLiked: false,
-    hasThreadBelow: true,
-  },
-  {
-    id: "c2",
-    author: "Aminat",
-    campus: "OAU",
-    avatar: "https://i.pravatar.cc/150?img=9",
-    time: "5h",
-    content: "Solva is literally changing the game for us students. No more broke days!",
-    likes: 128,
-    isLiked: true,
-    hasThreadBelow: true,
-  },
-  {
-    id: "c3",
-    author: "Daniel",
-    campus: "UNIBEN",
-    avatar: "https://i.pravatar.cc/150?img=14",
-    time: "3h",
-    content: "Facts! The research tasks are my favorite way to earn.",
-    likes: 12,
-    isLiked: false,
-    hasThreadBelow: false,
-  },
-];
+import { useRef } from "react";
+import { useState } from "react";
+import {
+  fetchPostById,
+  likePost,
+  commentOnPost,
+  likeComment,
+} from "../api/queries";
+import { useAuthStore } from "../stores/authStore";
+import { colors } from "../constants/theme";
+import AvatarView from "../components/avatarView";
 
 export default function PostDetailsScreen() {
   const router = useRouter();
-  
-  // State for post actions
-  const [postLiked, setPostLiked] = useState(false);
-  const [postReposted, setPostReposted] = useState(false);
+  const queryClient = useQueryClient();
+  const { postId } = useLocalSearchParams<{ postId: string }>();
+  const authUser = useAuthStore((state) => state.user);
 
-  // State for comments and input
-  const [comments, setComments] = useState(INITIAL_COMMENTS);
+  const userAvatar =
+    authUser?.profile?.profilePic ??
+    authUser?.profile?.avatar;
+
   const [commentText, setCommentText] = useState("");
-  
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
 
-  // --- Handlers for Post Actions ---
-  const handleTogglePostLike = () => setPostLiked(!postLiked);
-  const handleTogglePostRepost = () => setPostReposted(!postReposted);
-  
-  const handleShowOptions = () => {
-    Platform.OS === "web"
-      ? window.alert("More Options: Menu coming soon!")
-      : Alert.alert("More Options", "Menu coming soon!");
-  };
+  // ── Fetch post ──
+  const {
+    data: postData,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ["post", postId],
+    queryFn: () => fetchPostById(postId!),
+    enabled: !!postId,
+  });
 
-  const handleShare = () => {
-    Platform.OS === "web"
-      ? window.alert("Share options coming soon!")
-      : Alert.alert("Share", "Share options coming soon!");
-  };
-
-  const handleMessageIcon = () => {
-    // Focus the input to type a comment
-    inputRef.current?.focus();
-  };
-
-  // --- Handlers for Comments ---
-  const handleToggleCommentLike = (id: string) => {
-    setComments(prev => prev.map(c => {
-      if (c.id === id) {
-        const isNowLiked = !c.isLiked;
-        return {
-          ...c,
-          isLiked: isNowLiked,
-          likes: isNowLiked ? c.likes + 1 : c.likes - 1,
-        };
+  // Normalise
+  const post = postData
+    ? {
+        id: String(postData._id ?? postData.id ?? ""),
+        author:
+          postData.author?.fullName ??
+          postData.author?.name ??
+          postData.authorName ??
+          "Anonymous",
+        campus: postData.campus ?? postData.author?.campus ?? "",
+        avatar:
+          postData.author?.profilePic ??
+          postData.authorAvatar ??
+          "https://i.pravatar.cc/150?img=1",
+        badge: postData.badge ?? "none",
+        date: postData.createdAt
+          ? new Date(postData.createdAt).toLocaleDateString("en-NG", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
+          : "Just now",
+        content: postData.content ?? postData.text ?? "",
+        image: postData.image ?? postData.imageUrl ?? null,
+        views: postData.views ?? null,
+        likes: Array.isArray(postData.likes)
+          ? postData.likes.length
+          : postData.likesCount ?? 0,
+        isLikedByMe: postData.isLiked ?? false,
+        comments: Array.isArray(postData.comments)
+          ? postData.comments
+          : [],
       }
-      return c;
-    }));
+    : null;
+
+  // ── Like post ──
+  const likeMutation = useMutation({
+    mutationFn: () => likePost(postId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+    },
+    onError: () => Toast.error("Couldn't like post. Try again."),
+  });
+
+  // ── Comment on post ──
+  const commentMutation = useMutation({
+    mutationFn: (message: string) => commentOnPost({ id: postId!, message }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      setCommentText("");
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
+    },
+    onError: () => Toast.error("Couldn't post comment. Try again."),
+  });
+
+  // ── Like a comment ──
+  const likeCommentMutation = useMutation({
+    mutationFn: (commentId: string) => likeComment(commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+    },
+  });
+
+  const handleSendComment = () => {
+    if (!commentText.trim()) return;
+    commentMutation.mutate(commentText.trim());
   };
 
   const handleReplyToComment = (author: string) => {
@@ -109,48 +131,46 @@ export default function PostDetailsScreen() {
     inputRef.current?.focus();
   };
 
-  const handleSendComment = () => {
-    if (!commentText.trim()) return;
+  // ── LOADING / ERROR states ──
+  if (isLoading) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 12, color: "#888", fontFamily: "Inter-Regular" }}>
+          Loading post...
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
-    // Update previous last comment so it shows a thread line
-    const updatedComments = comments.map((c, index) => {
-      if (index === comments.length - 1) {
-        return { ...c, hasThreadBelow: true };
-      }
-      return c;
-    });
-
-    const newComment = {
-      id: `c${Date.now()}`,
-      author: "You",
-      campus: "UNILAG",
-      avatar: "https://i.pravatar.cc/150?img=44",
-      time: "Just now",
-      content: commentText.trim(),
-      likes: 0,
-      isLiked: false,
-      hasThreadBelow: false,
-    };
-
-    setComments([...updatedComments, newComment]);
-    setCommentText("");
-
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
+  if (isError || !post) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <FeatherIcon name="alert-circle" size={40} color="#ccc" />
+        <Text style={{ marginTop: 12, color: "#888", fontFamily: "Inter-Regular" }}>
+          Couldn't load this post.
+        </Text>
+        <TouchableOpacity
+          onPress={() => refetch()}
+          style={{ marginTop: 16, backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20 }}
+        >
+          <Text style={{ color: "#fff", fontFamily: "Inter-SemiBold" }}>Retry</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <ToastManager />
+
       {/* ── HEADER ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
           <FeatherIcon name="arrow-left" size={mscale(24)} color="#301934" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Post</Text>
-        <TouchableOpacity hitSlop={8} onPress={handleShowOptions}>
-          <FeatherIcon name="more-vertical" size={mscale(20)} color="#555" />
-        </TouchableOpacity>
+        <View style={{ width: 24 }} />
       </View>
 
       <KeyboardAvoidingView
@@ -166,55 +186,94 @@ export default function PostDetailsScreen() {
           {/* ── MAIN POST CARD ── */}
           <View style={styles.postCard}>
             <View style={styles.postHeader}>
-              <Image source={{ uri: "https://i.pravatar.cc/150?img=11" }} style={styles.avatar} />
+              {post.avatar === "https://i.pravatar.cc/150?img=1" ? (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarPlaceholderText}>
+                    {post.author.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              ) : (
+                <Image source={{ uri: post.avatar }} style={styles.avatar} />
+              )}
               <View style={styles.postMetaInfo}>
                 <View style={styles.authorRow}>
-                  <Text style={styles.authorName}>Tunde • UNILAG</Text>
-                  <MaterialCommunityIcons
-                    name="check-decagram"
-                    size={mscale(14)}
-                    color="#1DA1F2"
-                    style={{ marginLeft: 4 }}
-                  />
+                  <Text style={styles.authorName}>
+                    {post.author}
+                    {post.campus ? ` • ${post.campus}` : ""}
+                  </Text>
+                  {post.badge === "blue-check" && (
+                    <MaterialCommunityIcons
+                      name="check-decagram"
+                      size={mscale(14)}
+                      color="#1DA1F2"
+                      style={{ marginLeft: 4 }}
+                    />
+                  )}
+                  {post.badge === "pink-star" && (
+                    <MaterialCommunityIcons
+                      name="star-circle"
+                      size={mscale(14)}
+                      color="#D81B60"
+                      style={{ marginLeft: 4 }}
+                    />
+                  )}
                 </View>
-                <Text style={styles.postDate}>Mar 12, 2024</Text>
+                <Text style={styles.postDate}>{post.date}</Text>
               </View>
-              <TouchableOpacity hitSlop={8} onPress={handleShowOptions}>
-                <FeatherIcon name="more-horizontal" size={mscale(18)} color="#999" />
-              </TouchableOpacity>
             </View>
 
-            <Text style={styles.postContent}>
-              Just cashed out my <Text style={{ color: "#D81B60", fontFamily: "Inter-Medium" }}>N15,000</Text> withdrawal from Solva Wallet! Hustle pays, we move! 💸🔥
-            </Text>
+            {post.content ? (
+              <Text style={styles.postContent}>{post.content}</Text>
+            ) : null}
 
-            <View style={styles.viewsContainer}>
-              <Text style={styles.viewsCount}>12.3K</Text>
-              <Text style={styles.viewsLabel}> Views</Text>
-            </View>
+            {post.image ? (
+              <Image source={{ uri: post.image }} style={styles.postImage} />
+            ) : null}
+
+            {post.views ? (
+              <View style={styles.viewsContainer}>
+                <Text style={styles.viewsCount}>{post.views}</Text>
+                <Text style={styles.viewsLabel}> Views</Text>
+              </View>
+            ) : null}
 
             {/* Post Action Buttons */}
             <View style={styles.actionsRow}>
-              <TouchableOpacity style={styles.actionBtn} hitSlop={8} onPress={handleMessageIcon}>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                hitSlop={8}
+                onPress={() => inputRef.current?.focus()}
+              >
                 <FeatherIcon name="message-square" size={mscale(18)} color="#888" />
-                <Text style={styles.actionText}>{comments.length}</Text>
+                {post.comments.length > 0 && (
+                  <Text style={styles.actionText}>{post.comments.length}</Text>
+                )}
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionBtn} hitSlop={8} onPress={handleTogglePostRepost}>
-                <FeatherIcon name="repeat" size={mscale(18)} color={postReposted ? "#00BA7C" : "#888"} />
-                <Text style={[styles.actionText, postReposted && { color: "#00BA7C" }]}>
-                  {postReposted ? "1" : ""}
-                </Text>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                hitSlop={8}
+                onPress={() => likeMutation.mutate()}
+                disabled={likeMutation.isPending}
+              >
+                <FeatherIcon
+                  name="heart"
+                  size={mscale(18)}
+                  color={post.isLikedByMe ? "#F91880" : "#888"}
+                />
+                {post.likes > 0 && (
+                  <Text
+                    style={[
+                      styles.actionText,
+                      post.isLikedByMe && { color: "#F91880" },
+                    ]}
+                  >
+                    {post.likes}
+                  </Text>
+                )}
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionBtn} hitSlop={8} onPress={handleTogglePostLike}>
-                <FeatherIcon name="heart" size={mscale(18)} color={postLiked ? "#F91880" : "#888"} />
-                <Text style={[styles.actionText, postLiked && { color: "#F91880" }]}>
-                  {postLiked ? "2.4K" : ""}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.actionBtn} hitSlop={8} onPress={handleShare}>
+              <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
                 <FeatherIcon name="share" size={mscale(18)} color="#888" />
               </TouchableOpacity>
             </View>
@@ -222,65 +281,120 @@ export default function PostDetailsScreen() {
 
           {/* ── REPLYING TEXT ── */}
           <Text style={styles.replyingText}>
-            Replying to <Text style={{ color: "#5E17EB" }}>@Tunde</Text>
+            Replying to{" "}
+            <Text style={{ color: "#5E17EB" }}>@{post.author}</Text>
           </Text>
 
           {/* ── COMMENTS THREAD ── */}
           <View style={styles.commentsSection}>
-            {comments.map((comment, idx) => (
-              <View key={comment.id} style={styles.commentRow}>
-                {/* Left col: Avatar & Thread Line */}
-                <View style={styles.commentLeftCol}>
-                  <Image source={{ uri: comment.avatar }} style={styles.commentAvatar} />
-                  {comment.hasThreadBelow && <View style={styles.threadLine} />}
-                  {!comment.hasThreadBelow && idx === comments.length - 1 && (
-                     <View style={styles.threadLineCurve} />
-                  )}
-                </View>
+            {post.comments.length === 0 ? (
+              <Text style={styles.noCommentsText}>
+                No comments yet. Be the first to reply!
+              </Text>
+            ) : (
+              post.comments.map((comment: any, idx: number) => {
+                const commentId = String(comment._id ?? comment.id ?? idx);
+                const commentAuthor =
+                  comment.author?.fullName ??
+                  comment.author?.name ??
+                  comment.name ??
+                  "User";
+                const commentAvatar =
+                  comment.author?.profilePic ??
+                  comment.avatar ??
+                  "https://i.pravatar.cc/150?img=1";
+                const commentContent =
+                  comment.content ?? comment.message ?? comment.text ?? "";
+                const commentLikes = Array.isArray(comment.likes)
+                  ? comment.likes.length
+                  : comment.likesCount ?? 0;
+                const commentIsLiked = comment.isLiked ?? false;
+                const commentTime = comment.createdAt
+                  ? new Date(comment.createdAt).toLocaleDateString("en-NG", {
+                      day: "numeric",
+                      month: "short",
+                    })
+                  : "Just now";
+                const hasThreadBelow = idx < post.comments.length - 1;
 
-                {/* Right col: Content */}
-                <View style={styles.commentRightCol}>
-                  <View style={styles.commentHeader}>
-                    <Text style={styles.commentAuthor}>
-                      {comment.author} <Text style={styles.commentCampus}>▪ {comment.campus}</Text>
-                    </Text>
-                    <Text style={styles.commentTime}>{comment.time}</Text>
+                return (
+                  <View key={commentId} style={styles.commentRow}>
+                    {/* Left col: Avatar & Thread Line */}
+                    <View style={styles.commentLeftCol}>
+                      {commentAvatar === "https://i.pravatar.cc/150?img=1" ? (
+                        <View style={styles.commentAvatarPlaceholder}>
+                          <Text style={styles.avatarPlaceholderText}>
+                            {commentAuthor.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      ) : (
+                        <Image
+                          source={{ uri: commentAvatar }}
+                          style={styles.commentAvatar}
+                        />
+                      )}
+                      {hasThreadBelow && <View style={styles.threadLine} />}
+                    </View>
+
+                    {/* Right col: Content */}
+                    <View style={styles.commentRightCol}>
+                      <View style={styles.commentHeader}>
+                        <Text style={styles.commentAuthor}>
+                          {commentAuthor}{" "}
+                          <Text style={styles.commentCampus}>
+                            ▪ {comment.campus ?? comment.author?.campus ?? ""}
+                          </Text>
+                        </Text>
+                        <Text style={styles.commentTime}>{commentTime}</Text>
+                      </View>
+
+                      <Text style={styles.commentContent}>{commentContent}</Text>
+
+                      <View style={styles.commentActions}>
+                        <TouchableOpacity
+                          style={styles.likeBtn}
+                          hitSlop={8}
+                          onPress={() => likeCommentMutation.mutate(commentId)}
+                        >
+                          <FeatherIcon
+                            name="heart"
+                            size={mscale(14)}
+                            color={commentIsLiked ? "#F91880" : "#666"}
+                          />
+                          <Text
+                            style={[
+                              styles.likeCount,
+                              commentIsLiked && { color: "#F91880" },
+                            ]}
+                          >
+                            {commentLikes > 0 ? commentLikes : ""}
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          hitSlop={8}
+                          onPress={() => handleReplyToComment(commentAuthor)}
+                        >
+                          <Text style={styles.replyBtnText}>Reply</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
-
-                  <Text style={styles.commentContent}>{comment.content}</Text>
-
-                  <View style={styles.commentActions}>
-                    <TouchableOpacity 
-                      style={styles.likeBtn} 
-                      hitSlop={8}
-                      onPress={() => handleToggleCommentLike(comment.id)}
-                    >
-                      <FeatherIcon 
-                        name="heart" 
-                        size={mscale(14)} 
-                        color={comment.isLiked ? "#F91880" : "#666"} 
-                      />
-                      <Text style={[styles.likeCount, comment.isLiked && { color: "#F91880" }]}>
-                        {comment.likes}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity 
-                      hitSlop={8}
-                      onPress={() => handleReplyToComment(comment.author)}
-                    >
-                      <Text style={styles.replyBtnText}>Reply</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            ))}
+                );
+              })
+            )}
           </View>
         </ScrollView>
 
         {/* ── INPUT BAR ── */}
         <View style={styles.inputBar}>
-          <Image source={{ uri: "https://i.pravatar.cc/150?img=44" }} style={styles.inputAvatar} />
+          {userAvatar && userAvatar !== "https://i.pravatar.cc/150?img=44" ? (
+            <Image source={{ uri: userAvatar }} style={styles.inputAvatar} />
+          ) : (
+            <View style={styles.inputAvatarContainer}>
+              <AvatarView />
+            </View>
+          )}
           <View style={styles.inputWrapper}>
             <TextInput
               ref={inputRef}
@@ -292,13 +406,22 @@ export default function PostDetailsScreen() {
               onSubmitEditing={handleSendComment}
               returnKeyType="send"
             />
-            <TouchableOpacity 
-              style={[styles.sendBtn, !commentText.trim() && { opacity: 0.5 }]} 
+            <TouchableOpacity
+              style={[
+                styles.sendBtn,
+                (!commentText.trim() || commentMutation.isPending) && {
+                  opacity: 0.5,
+                },
+              ]}
               hitSlop={8}
               onPress={handleSendComment}
-              disabled={!commentText.trim()}
+              disabled={!commentText.trim() || commentMutation.isPending}
             >
-              <FeatherIcon name="send" size={mscale(16)} color="#fff" />
+              {commentMutation.isPending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <FeatherIcon name="send" size={mscale(16)} color="#fff" />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -308,13 +431,11 @@ export default function PostDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FDFDFD",
-  },
+  container: { flex: 1, backgroundColor: "#FDFDFD" },
   header: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: wscale(20),
     paddingTop: hscale(10),
     paddingBottom: hscale(16),
@@ -322,16 +443,12 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F0EEF5",
   },
   headerTitle: {
-    flex: 1,
     fontFamily: "Inter-SemiBold",
     fontSize: mscale(18),
     color: "#301934",
-    marginLeft: wscale(16),
   },
 
-  scrollView: {
-    flex: 1,
-  },
+  scrollView: { flex: 1 },
   scrollContent: {
     paddingHorizontal: wscale(20),
     paddingTop: hscale(20),
@@ -364,15 +481,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#5E17EB",
   },
+  avatarPlaceholder: {
+    width: wscale(44),
+    height: wscale(44),
+    borderRadius: wscale(22),
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarPlaceholderText: {
+    color: "#fff",
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(16),
+  },
   postMetaInfo: {
     flex: 1,
     marginLeft: wscale(12),
     justifyContent: "center",
   },
-  authorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+  authorRow: { flexDirection: "row", alignItems: "center" },
   authorName: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(14),
@@ -390,6 +517,13 @@ const styles = StyleSheet.create({
     color: "#333",
     lineHeight: mscale(22),
     marginBottom: hscale(16),
+  },
+  postImage: {
+    width: "100%",
+    height: hscale(220),
+    borderRadius: mscale(12),
+    marginBottom: hscale(16),
+    backgroundColor: "#F0EEF5",
   },
   viewsContainer: {
     flexDirection: "row",
@@ -409,8 +543,7 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: wscale(8),
+    justifyContent: "space-around",
     borderTopWidth: 1,
     borderTopColor: "#FAFAFA",
     paddingTop: hscale(12),
@@ -427,7 +560,6 @@ const styles = StyleSheet.create({
     color: "#888",
   },
 
-  // Replying text
   replyingText: {
     fontFamily: "Inter-Medium",
     fontSize: mscale(13),
@@ -435,10 +567,15 @@ const styles = StyleSheet.create({
     marginBottom: hscale(16),
   },
 
-  // Comments
-  commentsSection: {
-    paddingBottom: hscale(20),
+  noCommentsText: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    color: "#aaa",
+    textAlign: "center",
+    paddingVertical: hscale(24),
   },
+
+  commentsSection: { paddingBottom: hscale(20) },
   commentRow: {
     flexDirection: "row",
     marginBottom: hscale(4),
@@ -454,28 +591,22 @@ const styles = StyleSheet.create({
     borderRadius: wscale(18),
     zIndex: 2,
   },
+  commentAvatarPlaceholder: {
+    width: wscale(36),
+    height: wscale(36),
+    borderRadius: wscale(18),
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  },
   threadLine: {
     width: 2,
     backgroundColor: "#EAE6F0",
     flex: 1,
     marginTop: hscale(4),
   },
-  threadLineCurve: {
-    width: wscale(20),
-    height: hscale(30),
-    borderLeftWidth: 2,
-    borderBottomWidth: 2,
-    borderColor: "#EAE6F0",
-    borderBottomLeftRadius: 10,
-    alignSelf: "flex-start",
-    marginLeft: wscale(18),
-    marginTop: -hscale(10),
-    zIndex: 1,
-  },
-  commentRightCol: {
-    flex: 1,
-    paddingBottom: hscale(20),
-  },
+  commentRightCol: { flex: 1, paddingBottom: hscale(20) },
   commentHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -539,6 +670,12 @@ const styles = StyleSheet.create({
     height: wscale(36),
     borderRadius: wscale(18),
     marginRight: wscale(12),
+  },
+  inputAvatarContainer: {
+    width: wscale(36),
+    height: wscale(36),
+    marginRight: wscale(12),
+    overflow: "hidden",
   },
   inputWrapper: {
     flex: 1,

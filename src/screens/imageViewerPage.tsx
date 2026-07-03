@@ -20,8 +20,8 @@ const ImageViewerPage = ({ route }: { route?: ImageViewerRouteLike }) => {
 
   return (
     <View style={[globalStyles.screen, { backgroundColor: colors.black }]}>
-      <Zoomable style={{ justifyContent: "center" }}>
-        <Image source={imageSource} style={{ height: hscale(500), width: "100%" }} />
+      <Zoomable style={{ flex: 1, justifyContent: "center" }}>
+        <Image source={imageSource} style={{ flex: 1, width: "100%" }} contentFit="contain" />
       </Zoomable>
     </View>
   );

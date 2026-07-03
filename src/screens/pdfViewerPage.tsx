@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
+import * as Sharing from "expo-sharing";
 
 export default function PdfViewerPage() {
   const { id } = useLocalSearchParams();
@@ -57,6 +58,15 @@ export default function PdfViewerPage() {
                 type: "application/pdf",
               },
             );
+          } else {
+            console.log("File not found anywhere");
+          }
+        } else if (Platform.OS === "ios") {
+          const fileInfo = await FileSystem.getInfoAsync(file.filePath);
+          if (fileInfo.exists) {
+            await Sharing.shareAsync(file.filePath);
+          } else if (file.sourceUrl) {
+            await Sharing.shareAsync(file.sourceUrl);
           } else {
             console.log("File not found anywhere");
           }

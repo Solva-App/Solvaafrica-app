@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   ListRenderItemInfo,
   ActivityIndicator,
+  StyleSheet,
 } from "react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import { globalStyles } from "@/src/styles/global";
 import { hscale, mscale } from "@/src/helpers/metric";
 import { colors } from "@/src/constants/theme";
 import { useFocusEffect, useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 
 import { AUTH_API_CLIENT } from "@/src/api/apiClient";
 import ErrorModal from "@/src/components/errorModal";
@@ -63,7 +65,16 @@ export default function JobOffers() {
   };
 
   return (
-    <View style={globalStyles.screen}>
+    <View style={[globalStyles.screen, { backgroundColor: "#F0EDF6" }]}>
+      {/* ── Back Header ── */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Feather name="arrow-left" size={22} color="#1A1A2E" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Job Offers</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
       <Image
         source={require("../../../assets/images/jobBanner.png")}
         style={{
@@ -171,3 +182,32 @@ export default function JobOffers() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: "#F0EDF6",
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(17),
+    color: "#1A1A2E",
+  },
+  headerSpacer: {
+    width: 40,
+  },
+});

@@ -9,7 +9,6 @@ import {
   Modal,
   FlatList,
   TouchableWithoutFeedback,
-  Alert,
   Image,
   ScrollView,
 } from "react-native";
@@ -18,33 +17,55 @@ import { useRouter } from "expo-router";
 import FeatherIcon from "@expo/vector-icons/Feather";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as ImagePicker from "expo-image-picker";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import ToastManager, { Toast } from "toastify-react-native";
 
 import { hscale, mscale, wscale } from "../helpers/metric";
 import { colors } from "../constants/theme";
 import { useState } from "react";
-import { useCommunityStore } from "../store/useCommunityStore";
+import { createCommunityPost } from "../api/queries";
+import { useAuthStore } from "../stores/authStore";
+import AvatarView from "../components/avatarView";
 
-const CAMPUSES = [
-  "UNILAG",
-  "UNIBEN",
-  "OAU",
-  "UI",
-  "ABU",
-  "UNN",
-];
+const CAMPUSES = ["UNILAG", "UNIBEN", "OAU", "UI", "ABU", "UNN"];
 
 export default function CreatePostScreen() {
   const router = useRouter();
-  const addPost = useCommunityStore((state) => state.addPost);
+  const queryClient = useQueryClient();
+  const authUser = useAuthStore((state) => state.user);
+
+  const userAvatar =
+    authUser?.profile?.profilePic ??
+    authUser?.profile?.avatar;
 
   const [postText, setPostText] = useState("");
-  const [selectedCampus, setSelectedCampus] = useState(CAMPUSES[0]);
+  const [selectedCampus, setSelectedCampus] = useState(
+    authUser?.profile?.campus ?? CAMPUSES[0]
+  );
   const [isDropdownVisible, setDropdownVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Poll State
   const [showPoll, setShowPoll] = useState(false);
-  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]); // Default 2 options
+  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+
+  // ── Mutation ──
+  const { mutate: submitPost, isPending } = useMutation({
+    mutationFn: (formData: FormData) => createCommunityPost(formData),
+    onSuccess: () => {
+      // Invalidate the feed so it reloads with the new post
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      Toast.success("Post published! 🎉");
+      setTimeout(() => router.back(), 800);
+    },
+    onError: (err: any) => {
+      const msg =
+        err?.response?.data?.message ??
+        err?.message ??
+        "Failed to publish post. Try again.";
+      Toast.error(msg);
+    },
+  });
 
   const handleSelectCampus = (campus: string) => {
     setSelectedCampus(campus);
@@ -52,11 +73,10 @@ export default function CreatePostScreen() {
   };
 
   const handlePickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
-      Platform.OS === "web" 
-        ? window.alert("Permission Required: Please grant access to your photos to upload an image.")
-        : Alert.alert("Permission Required", "Please grant access to your photos to upload an image.");
+      Toast.error("Please grant access to your photos.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -70,11 +90,10 @@ export default function CreatePostScreen() {
   };
 
   const handleTakeImage = async () => {
-    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    const permissionResult =
+      await ImagePicker.requestCameraPermissionsAsync();
     if (!permissionResult.granted) {
-      Platform.OS === "web"
-        ? window.alert("Permission Required: Please grant camera access to take a photo.")
-        : Alert.alert("Permission Required", "Please grant camera access to take a photo.");
+      Toast.error("Please grant camera access.");
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -84,10 +103,6 @@ export default function CreatePostScreen() {
     if (!result.canceled) {
       setSelectedImage(result.assets[0].uri);
     }
-  };
-
-  const handleTogglePoll = () => {
-    setShowPoll(!showPoll);
   };
 
   const handleAddPollOption = () => {
@@ -102,56 +117,67 @@ export default function CreatePostScreen() {
     setPollOptions(newOptions);
   };
 
-  const handleGif = () => {
-    Platform.OS === "web" ? window.alert("GIF search coming soon!") : Alert.alert("GIFs", "GIF search coming soon!");
-  };
-
   const handlePost = () => {
-    // Check if at least one condition is met (text, image, or poll filled out)
     const hasText = postText.trim().length > 0;
     const hasImage = !!selectedImage;
-    const hasValidPoll = showPoll && pollOptions.filter(opt => opt.trim().length > 0).length >= 2;
+    const hasValidPoll =
+      showPoll &&
+      pollOptions.filter((opt) => opt.trim().length > 0).length >= 2;
 
     if (!hasText && !hasImage && !hasValidPoll) {
-      Platform.OS === "web"
-        ? window.alert("Empty Post: Please write something, attach an image, or create a poll.")
-        : Alert.alert("Empty Post", "Please write something, attach an image, or create a poll.");
+      Toast.warn("Write something, attach an image, or create a poll.");
       return;
     }
-    
-    // Create new post in the store
-    const newPost = {
-      id: `p${Date.now()}`,
-      author: "You",
-      campus: selectedCampus,
-      avatar: "https://i.pravatar.cc/150?img=44",
-      badge: "none" as const,
-      date: "Just now",
-      content: postText.trim() || (showPoll ? "[Poll Created]" : ""),
-      views: null,
-      image: selectedImage || undefined,
-    };
-    addPost(newPost);
 
-    if (Platform.OS === "web") {
-      window.alert("Post submitted to the community!");
-      router.back();
-    } else {
-      Alert.alert("Success", "Post submitted to the community!", [
-        { text: "OK", onPress: () => router.back() }
-      ]);
+    // Build FormData
+    const formData = new FormData();
+    formData.append("content", postText.trim());
+    formData.append("campus", selectedCampus);
+
+    if (selectedImage) {
+      const filename = selectedImage.split("/").pop() ?? "photo.jpg";
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : "image/jpeg";
+      formData.append("image", {
+        uri: selectedImage,
+        name: filename,
+        type,
+      } as any);
     }
+
+    if (hasValidPoll) {
+      formData.append(
+        "poll",
+        JSON.stringify(
+          pollOptions.filter((o) => o.trim().length > 0).map((o) => o.trim())
+        )
+      );
+    }
+
+    submitPost(formData);
   };
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+      <ToastManager />
       {/* ── HEADER ── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          hitSlop={8}
+          disabled={isPending}
+        >
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.postBtn} hitSlop={8} onPress={handlePost}>
-          <Text style={styles.postBtnText}>Post</Text>
+        <TouchableOpacity
+          style={[styles.postBtn, isPending && { opacity: 0.6 }]}
+          hitSlop={8}
+          onPress={handlePost}
+          disabled={isPending}
+        >
+          <Text style={styles.postBtnText}>
+            {isPending ? "Posting..." : "Post"}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -160,19 +186,33 @@ export default function CreatePostScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={styles.content}>
-          {/* Campus Selector Pill */}
-          <TouchableOpacity 
-            style={styles.campusPill} 
-            activeOpacity={0.7}
-            onPress={() => setDropdownVisible(true)}
-          >
-            <Text style={styles.campusText}>{selectedCampus} 🦅</Text>
-            <FeatherIcon name="chevron-down" size={mscale(16)} color="#301934" />
-          </TouchableOpacity>
+          {/* User row */}
+          <View style={styles.userRow}>
+            {userAvatar && userAvatar !== "https://i.pravatar.cc/150?img=44" ? (
+              <Image source={{ uri: userAvatar }} style={styles.userAvatar} />
+            ) : (
+              <View style={styles.userAvatar}>
+                <AvatarView />
+              </View>
+            )}
+            {/* Campus Selector Pill */}
+            <TouchableOpacity
+              style={styles.campusPill}
+              activeOpacity={0.7}
+              onPress={() => setDropdownVisible(true)}
+            >
+              <Text style={styles.campusText}>{selectedCampus} 🦅</Text>
+              <FeatherIcon
+                name="chevron-down"
+                size={mscale(16)}
+                color="#301934"
+              />
+            </TouchableOpacity>
+          </View>
 
           {/* Input Area */}
-          <ScrollView 
-            style={styles.inputArea} 
+          <ScrollView
+            style={styles.inputArea}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -186,11 +226,14 @@ export default function CreatePostScreen() {
               onChangeText={setPostText}
               textAlignVertical="top"
             />
-            
+
             {selectedImage && (
               <View style={styles.imagePreviewContainer}>
-                <Image source={{ uri: selectedImage }} style={styles.imagePreview} />
-                <TouchableOpacity 
+                <Image
+                  source={{ uri: selectedImage }}
+                  style={styles.imagePreview}
+                />
+                <TouchableOpacity
                   style={styles.removeImageBtn}
                   onPress={() => setSelectedImage(null)}
                 >
@@ -216,7 +259,9 @@ export default function CreatePostScreen() {
                       placeholder={`Option ${index + 1}`}
                       placeholderTextColor="#999"
                       value={opt}
-                      onChangeText={(text) => handleUpdatePollOption(text, index)}
+                      onChangeText={(text) =>
+                        handleUpdatePollOption(text, index)
+                      }
                       maxLength={25}
                     />
                     <Text style={styles.pollCount}>{opt.length}/25</Text>
@@ -224,8 +269,8 @@ export default function CreatePostScreen() {
                 ))}
 
                 {pollOptions.length < 4 && (
-                  <TouchableOpacity 
-                    style={styles.addPollBtn} 
+                  <TouchableOpacity
+                    style={styles.addPollBtn}
                     onPress={handleAddPollOption}
                   >
                     <FeatherIcon name="plus" size={mscale(16)} color="#5E17EB" />
@@ -239,31 +284,38 @@ export default function CreatePostScreen() {
 
         {/* ── BOTTOM ACCESSORY BAR ── */}
         <View style={styles.bottomBar}>
-          {/* Reply permission */}
           <TouchableOpacity style={styles.replyPermissionRow}>
-            <MaterialCommunityIcons name="web" size={mscale(16)} color="#4A148C" />
+            <MaterialCommunityIcons
+              name="web"
+              size={mscale(16)}
+              color="#4A148C"
+            />
             <Text style={styles.replyPermissionText}>Everyone can reply</Text>
           </TouchableOpacity>
-          
-          {/* Divider */}
+
           <View style={styles.divider} />
 
-          {/* Tools */}
           <View style={styles.toolsRow}>
             <View style={styles.iconGroup}>
               <TouchableOpacity style={styles.toolBtn} onPress={handlePickImage}>
-                <FeatherIcon name="image" size={mscale(20)} color={selectedImage ? "#5E17EB" : "#555"} />
+                <FeatherIcon
+                  name="image"
+                  size={mscale(20)}
+                  color={selectedImage ? "#5E17EB" : "#555"}
+                />
               </TouchableOpacity>
               <TouchableOpacity style={styles.toolBtn} onPress={handleTakeImage}>
                 <FeatherIcon name="camera" size={mscale(20)} color="#555" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.toolBtn} onPress={handleTogglePoll}>
-                <FeatherIcon name="bar-chart-2" size={mscale(20)} color={showPoll ? "#5E17EB" : "#555"} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.toolBtn} onPress={handleGif}>
-                <View style={styles.gifIcon}>
-                  <Text style={styles.gifText}>GIF</Text>
-                </View>
+              <TouchableOpacity
+                style={styles.toolBtn}
+                onPress={() => setShowPoll(!showPoll)}
+              >
+                <FeatherIcon
+                  name="bar-chart-2"
+                  size={mscale(20)}
+                  color={showPoll ? "#5E17EB" : "#555"}
+                />
               </TouchableOpacity>
             </View>
 
@@ -298,20 +350,25 @@ export default function CreatePostScreen() {
                     <TouchableOpacity
                       style={[
                         styles.dropdownItem,
-                        item === selectedCampus && styles.dropdownItemSelected
+                        item === selectedCampus && styles.dropdownItemSelected,
                       ]}
                       onPress={() => handleSelectCampus(item)}
                     >
-                      <Text 
+                      <Text
                         style={[
                           styles.dropdownItemText,
-                          item === selectedCampus && styles.dropdownItemTextSelected
+                          item === selectedCampus &&
+                            styles.dropdownItemTextSelected,
                         ]}
                       >
                         {item}
                       </Text>
                       {item === selectedCampus && (
-                        <FeatherIcon name="check" size={mscale(16)} color="#5E17EB" />
+                        <FeatherIcon
+                          name="check"
+                          size={mscale(16)}
+                          color="#5E17EB"
+                        />
                       )}
                     </TouchableOpacity>
                   )}
@@ -321,18 +378,13 @@ export default function CreatePostScreen() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
-
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FCFCFE",
-  },
+  container: { flex: 1, backgroundColor: "#FCFCFE" },
 
-  // ── Header ──
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -358,23 +410,30 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
 
-  content: {
-    flex: 1,
-    paddingHorizontal: wscale(20),
-  },
+  content: { flex: 1, paddingHorizontal: wscale(20) },
 
-  // ── Campus Pill ──
+  userRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: wscale(12),
+    marginBottom: hscale(16),
+  },
+  userAvatar: {
+    width: wscale(40),
+    height: wscale(40),
+    borderRadius: wscale(20),
+    borderWidth: 1.5,
+    borderColor: "#5E17EB",
+  },
   campusPill: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
     backgroundColor: "#fff",
     borderWidth: 1,
     borderColor: "#E6DCEE",
     paddingVertical: hscale(6),
     paddingHorizontal: wscale(12),
     borderRadius: mscale(20),
-    marginBottom: hscale(20),
     gap: wscale(4),
   },
   campusText: {
@@ -383,7 +442,6 @@ const styles = StyleSheet.create({
     color: "#301934",
   },
 
-  // ── Input Area ──
   inputArea: {
     flex: 1,
     borderWidth: 1,
@@ -401,8 +459,7 @@ const styles = StyleSheet.create({
     minHeight: hscale(80),
     outlineStyle: "none",
   },
-  
-  // ── Image Preview ──
+
   imagePreviewContainer: {
     marginTop: hscale(16),
     position: "relative",
@@ -424,7 +481,6 @@ const styles = StyleSheet.create({
     padding: mscale(4),
   },
 
-  // ── Poll UI ──
   pollContainer: {
     marginTop: hscale(16),
     borderWidth: 1,
@@ -480,10 +536,7 @@ const styles = StyleSheet.create({
     color: "#5E17EB",
   },
 
-  // ── Bottom Bar ──
-  bottomBar: {
-    backgroundColor: "#FCFCFE",
-  },
+  bottomBar: { backgroundColor: "#FCFCFE" },
   replyPermissionRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -496,11 +549,7 @@ const styles = StyleSheet.create({
     fontSize: mscale(13),
     color: "#4A148C",
   },
-  divider: {
-    height: 1,
-    backgroundColor: "#F0EEF5",
-    width: "100%",
-  },
+  divider: { height: 1, backgroundColor: "#F0EEF5", width: "100%" },
   toolsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -513,21 +562,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: wscale(16),
   },
-  toolBtn: {
-    padding: mscale(4),
-  },
-  gifIcon: {
-    borderWidth: 2,
-    borderColor: "#E81B6B",
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  gifText: {
-    fontFamily: "Inter-Bold",
-    fontSize: mscale(9),
-    color: "#E81B6B",
-  },
+  toolBtn: { padding: mscale(4) },
   rightTools: {
     flexDirection: "row",
     alignItems: "center",
@@ -555,7 +590,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // ── Modal Styles ──
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.3)",
@@ -589,9 +623,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: wscale(12),
     borderRadius: mscale(8),
   },
-  dropdownItemSelected: {
-    backgroundColor: "#F3E8F5",
-  },
+  dropdownItemSelected: { backgroundColor: "#F3E8F5" },
   dropdownItemText: {
     fontFamily: "Inter-Medium",
     fontSize: mscale(15),
