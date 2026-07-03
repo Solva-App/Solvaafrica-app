@@ -32,6 +32,12 @@ const ACADEMIC_TILES = [
     dark: false,
   },
   {
+    label: "COURSE\nACADEMY",
+    icon: "school-outline" as const,
+    route: "/courses/academy",
+    dark: false,
+  },
+  {
     label: "UPLOAD\nMATERIALS",
     icon: "cloud-upload-outline" as const,
     route: "/upload",

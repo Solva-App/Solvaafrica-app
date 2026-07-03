@@ -94,3 +94,9 @@ export const fetchTrendingTopics = async () => {
   return response.data?.data ?? response.data ?? [];
 };
 
+/** Fetch Course Academy courses from the admin repository */
+export const fetchAcademyCourses = async () => {
+  const response = await AUTH_API_CLIENT.get("/academy");
+  return response.data?.data ?? response.data ?? [];
+};
+
