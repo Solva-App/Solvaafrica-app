@@ -78,31 +78,31 @@ const renderIcon = (type: string) => {
     case "movie":
       return (
         <View style={[styles.iconWrap, { backgroundColor: "#EDE5F6" }]}>
-          <MovieIcon name="movie-creation" size={mscale(20)} color="#27053B" />
+          <MovieIcon name="movie-creation" size={mscale(20)} color="#6207A0" />
         </View>
       );
     case "cursor":
       return (
-        <View style={[styles.iconWrap, { backgroundColor: "#E5F8ED" }]}>
-          <CursorIcon name="cursor-default-click" size={mscale(20)} color="#125F37" />
+        <View style={[styles.iconWrap, { backgroundColor: "#EDE5F6" }]}>
+          <CursorIcon name="cursor-default-click" size={mscale(20)} color="#6207A0" />
         </View>
       );
     case "code":
       return (
-        <View style={[styles.iconWrap, { backgroundColor: "#FAEBFA" }]}>
-          <CodeIcon name="code" size={mscale(16)} color="#4A054A" />
+        <View style={[styles.iconWrap, { backgroundColor: "#EDE5F6" }]}>
+          <CodeIcon name="code" size={mscale(16)} color="#6207A0" />
         </View>
       );
     case "brush":
       return (
-        <View style={[styles.iconWrap, { backgroundColor: "#EBE9F2" }]}>
-          <BrushIcon name="brush" size={mscale(20)} color="#7C738F" />
+        <View style={[styles.iconWrap, { backgroundColor: "#EDE5F6" }]}>
+          <BrushIcon name="brush" size={mscale(20)} color="#6207A0" />
         </View>
       );
     default:
       return (
-        <View style={[styles.iconWrap, { backgroundColor: "#EEE" }]}>
-          <MovieIcon name="book" size={mscale(20)} color="#555" />
+        <View style={[styles.iconWrap, { backgroundColor: "#EDE5F6" }]}>
+          <MovieIcon name="book" size={mscale(20)} color="#6207A0" />
         </View>
       );
   }
@@ -120,7 +120,7 @@ export default function CourseAcademyScreen() {
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
-          <BackIcon name="arrow-back" size={mscale(24)} color="#FFFFFF" />
+          <BackIcon name="arrow-back" size={mscale(24)} color={colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Course Academy</Text>
       </View>
@@ -187,7 +187,7 @@ export default function CourseAcademyScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.primary,
+    backgroundColor: "#FAF9FB",
   },
   header: {
     flexDirection: "row",
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: wscale(20),
     paddingTop: Platform.OS === "ios" ? hscale(60) : hscale(40),
     paddingBottom: hscale(16),
-    backgroundColor: colors.primary,
+    backgroundColor: "#FAF9FB",
   },
   backBtn: {
     marginRight: wscale(12),
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(18),
-    color: "#FFFFFF", 
+    color: colors.primary,
   },
   scrollContent: {
     paddingHorizontal: wscale(16),
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
   priceText: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(16),
-    color: "#27053B", // Very dark purple
+    color: colors.primary,
     marginRight: wscale(8),
   },
   oldPriceText: {
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   startBtn: {
-    backgroundColor: "#5A0B91", // Deep vibrant purple
+    backgroundColor: colors.primary,
     borderRadius: mscale(25),
     height: hscale(46),
     alignItems: "center",
