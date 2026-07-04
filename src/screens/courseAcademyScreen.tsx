@@ -120,7 +120,7 @@ export default function CourseAcademyScreen() {
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
-          <BackIcon name="arrow-back" size={mscale(24)} color="#27053B" />
+          <BackIcon name="arrow-back" size={mscale(24)} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Course Academy</Text>
       </View>
@@ -187,7 +187,7 @@ export default function CourseAcademyScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#FAF9FB",
+    backgroundColor: colors.primary,
   },
   header: {
     flexDirection: "row",
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: wscale(20),
     paddingTop: Platform.OS === "ios" ? hscale(60) : hscale(40),
     paddingBottom: hscale(16),
-    backgroundColor: "#FAF9FB",
+    backgroundColor: colors.primary,
   },
   backBtn: {
     marginRight: wscale(12),
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(18),
-    color: "#27053B", // Very dark purple
+    color: "#FFFFFF", 
   },
   scrollContent: {
     paddingHorizontal: wscale(16),
