@@ -120,7 +120,7 @@ export default function CourseAcademyScreen() {
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
-          <BackIcon name="arrow-back" size={mscale(24)} color={colors.primary} />
+          <BackIcon name="arrow-back" size={mscale(24)} color="#27053B" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Course Academy</Text>
       </View>
@@ -170,12 +170,13 @@ export default function CourseAcademyScreen() {
             )}
 
             {/* Button */}
-            <Pressable
+            <TouchableOpacity
               style={styles.startBtn}
+              activeOpacity={0.7}
               onPress={() => handleStartLearning(course.link)}
             >
               <Text style={styles.startBtnText}>Start Learning</Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
         ))}
       </ScrollView>
@@ -202,7 +203,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(18),
-    color: colors.primary,
+    color: "#27053B", // Very dark purple
   },
   scrollContent: {
     paddingHorizontal: wscale(16),
@@ -282,7 +283,7 @@ const styles = StyleSheet.create({
   priceText: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(16),
-    color: colors.primary,
+    color: "#27053B", // Very dark purple
     marginRight: wscale(8),
   },
   oldPriceText: {
@@ -292,7 +293,7 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   startBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: "#5A0B91", // Deep vibrant purple
     borderRadius: mscale(25),
     height: hscale(46),
     alignItems: "center",
