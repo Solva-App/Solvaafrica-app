@@ -129,6 +129,7 @@ export default function ExploreTaskScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.filtersRow}>
+            {/* ── High Reward — stays on this page ── */}
             <Pressable
               style={[styles.filterButton, styles.filterButtonActive]}
               onPress={() => setActiveFilter("high")}
@@ -138,6 +139,7 @@ export default function ExploreTaskScreen() {
               </Text>
             </Pressable>
 
+            {/* ── Earns — navigates to the Earning screen ── */}
             <Pressable
               style={styles.filterButton}
               onPress={() =>
@@ -169,14 +171,15 @@ export default function ExploreTaskScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: "#F0EDF6",
   },
   header: {
     height: 64,
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    backgroundColor: "#F0EDF6",
   },
   iconButton: {
     width: 40,
@@ -189,54 +192,56 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "800",
-    color: "#111111",
+    fontFamily: "Inter-Bold",
+    color: "#1A1A2E",
   },
   filtersRow: {
     flexDirection: "row",
-    gap: 16,
-    justifyContent: "space-between",
-    marginBottom: 18,
+    gap: 12,
+    marginBottom: 20,
   },
   filterButton: {
     flex: 1,
-    minHeight: 42,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "#8E8E8E",
-    backgroundColor: "#F8F8F8",
+    minHeight: 46,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: "#C0B8D0",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
   },
   filterButtonActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#4B006E",
+    borderColor: "#4B006E",
   },
   filterText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111111",
+    fontSize: 15,
+    fontFamily: "Inter-SemiBold",
+    color: "#555",
   },
   filterTextActive: {
-    color: "#111111",
+    color: "#FFFFFF",
   },
   listContent: {
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 24,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 32,
   },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingTop: 60,
   },
   message: {
     fontSize: 15,
-    color: "#111111",
+    fontFamily: "Inter-Regular",
+    color: "#555",
   },
   retryText: {
     marginTop: 10,
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: "Inter-SemiBold",
     color: "#6207A0",
   },
 });

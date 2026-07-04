@@ -64,14 +64,12 @@ export default function UploadFilePreviewScreen() {
 
   const handleFileUpload = async () => {
     if (!pickedFile || !isPdfFile(pickedFile.name, pickedFile.mimeType)) {
-      setErrorMessage("Invalid file. Only PDF uploads are allowed.");
-      setErrorVisible(true);
+      ToastManager.error("Invalid file. Only PDF uploads are allowed.");
       return;
     }
 
     if (!selectedType) {
-      setErrorMessage("Please select a file type before uploading.");
-      setErrorVisible(true);
+      ToastManager.error("Please select a file type before uploading.");
       return;
     }
 
@@ -96,8 +94,10 @@ export default function UploadFilePreviewScreen() {
       );
 
       if (formUploadResponse.status === 200) {
-        Alert.alert("Success", "File upload was successful!");
-        router.back();
+        ToastManager.success("File upload was successful!");
+        setTimeout(() => {
+          router.back();
+        }, 1500);
       }
     } catch (error) {
       let message = "Upload failed, Try later or contact support";
@@ -114,8 +114,7 @@ export default function UploadFilePreviewScreen() {
           error.response?.data
         );
       }
-      setErrorMessage(message);
-      setErrorVisible(true);
+      ToastManager.error(message);
     } finally {
       setIsUploading(false);
     }

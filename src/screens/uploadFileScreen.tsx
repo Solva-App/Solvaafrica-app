@@ -73,9 +73,7 @@ export default function UploadFilesScreen() {
                 <LeftIcon name="chevron-back" size={mscale(24)} color="#fff" />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Solva</Text>
-              <TouchableOpacity style={styles.bellBtn} hitSlop={8}>
-                <FeatherIcon name="bell" size={mscale(20)} color="#fff" />
-              </TouchableOpacity>
+              <View style={{ width: mscale(36) }} /> {/* Spacer to balance header */}
             </View>
 
             {/* Main Icon Area */}

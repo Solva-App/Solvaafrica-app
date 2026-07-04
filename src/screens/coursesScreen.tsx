@@ -21,6 +21,8 @@ import CheckCircleIcon from "@expo/vector-icons/FontAwesome";
 import DownloadFeather from "@expo/vector-icons/Feather";
 import { FlashList } from "@shopify/flash-list";
 import LottieView from "lottie-react-native";
+import * as Sharing from "expo-sharing";
+import ReactNativeBlobUtil from "react-native-blob-util";
 
 import { colors } from "../constants/theme";
 import { universities, faculties } from "../constants/data";
@@ -298,6 +300,7 @@ const ProjectCard = ({
   onDownloadComplete,
 }: ProjectCardProps) => {
   const [fileExist, setFileExist] = useState(false);
+  const [localUri, setLocalUri] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const downloadFile = useDownloadFile(true, "PRJ");
   const DownloadIconRef = useRef<LottieView>(null);
@@ -315,12 +318,45 @@ const ProjectCard = ({
     onDownloadStart();
     try {
       const result = await downloadFile("Projects", fileURI, fileName);
-      if (result.success) {
+      if (result.success && result.fileUri) {
         setFileExist(true);
+        setLocalUri(result.fileUri);
         setDownloadSuccess(true);
         if (downloadTimeoutRef.current) clearTimeout(downloadTimeoutRef.current);
         downloadTimeoutRef.current = setTimeout(() => setDownloadSuccess(false), 3000);
-        Toast.success(`Downloaded: ${fileName}`);
+
+        // Save directly to device storage
+        if (Platform.OS === "android") {
+          try {
+            const localPath = result.fileUri.replace("file://", "");
+            const destPath = `${ReactNativeBlobUtil.fs.dirs.DownloadDir}/${fileName}`;
+            await ReactNativeBlobUtil.fs.cp(localPath, destPath);
+            Toast.success(`Saved to Downloads: ${fileName}`);
+          } catch (saveErr) {
+            console.log("Error saving to Downloads:", saveErr);
+            Toast.success(`Downloaded: ${fileName}`);
+          }
+        } else if (Platform.OS === "ios") {
+          try {
+            await Sharing.shareAsync(result.fileUri);
+          } catch {
+            Toast.success(`Downloaded: ${fileName}`);
+          }
+        } else if (Platform.OS === "web") {
+          try {
+            const link = document.createElement("a");
+            link.href = result.fileUri;
+            link.setAttribute("download", fileName);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            Toast.success(`Downloading: ${fileName}`);
+          } catch (e) {
+            Toast.success(`Downloaded: ${fileName}`);
+          }
+        } else {
+          Toast.success(`Downloaded: ${fileName}`);
+        }
       } else {
         Toast.error(`Failed to download: ${fileName}`);
       }
@@ -372,10 +408,17 @@ const ProjectCard = ({
         </View>
 
         {fileExist || downloadSuccess ? (
-          <View style={styles.downloadBtn}>
+          <Pressable
+            style={styles.downloadBtn}
+            onPress={
+              Platform.OS === "web" ? handleDownload : handleMobileDownload
+            }
+          >
             <CheckCircleIcon name="check-circle" size={mscale(14)} color={colors.primary} />
-            <Text style={styles.downloadBtnText}>Downloaded</Text>
-          </View>
+            <Text style={styles.downloadBtnText}>
+              {Platform.OS === "web" ? "Download Again" : "Save to Phone"}
+            </Text>
+          </Pressable>
         ) : isDownloading ? (
           <View style={styles.downloadBtn}>
             <LottieView

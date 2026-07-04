@@ -21,7 +21,8 @@ import ToastManager, { Toast } from "toastify-react-native";
 import PrimaryButton from "@/src/components/primaryButton";
 import { useState } from "react";
 import AntDesign from "@expo/vector-icons/AntDesign";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Feather } from "@expo/vector-icons";
 
 type Props = StaticScreenProps<{ job: Job }>;
 
@@ -91,8 +92,19 @@ const JobDetailsScreen = ({ route }: Props) => {
     );
   }
 
+  const router = useRouter();
+
   return (
-    <ScrollView style={globalStyles.screen}>
+    <ScrollView style={[globalStyles.screen, { backgroundColor: "#F0EDF6" }]}>
+      {/* ── Back Header ── */}
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Feather name="arrow-left" size={22} color="#1A1A2E" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Job Details</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
       <Image
         source={require("../../../assets/images/jobBanner.png")}
         style={{
@@ -198,6 +210,33 @@ const JobDetailsScreen = ({ route }: Props) => {
 };
 
 const styles = StyleSheet.create({
+  // ── Header ──
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: "#F0EDF6",
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(17),
+    color: "#1A1A2E",
+  },
+  headerSpacer: {
+    width: 40,
+  },
   headerText: {
     fontFamily: "Inter-Bold",
     color: colors.black,

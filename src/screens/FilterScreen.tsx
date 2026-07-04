@@ -7,31 +7,141 @@ import {
   Platform,
   Image,
   TextInput,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import FeatherIcon from "@expo/vector-icons/Feather";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { hscale, mscale, wscale } from "../helpers/metric";
 import { colors } from "../constants/theme";
-import { useCommunityStore } from "../store/useCommunityStore";
+import { fetchCommunityPosts, likePost, deletePost, fetchTrendingTopics } from "../api/queries";
+import { useAuthStore } from "../stores/authStore";
+import AvatarView from "../components/avatarView";
 
-// Mock Data for Trending Only (Posts moved to store)
-const TRENDING_TOPICS = [
-  { id: 1, tag: "#UNIBENvsUNILAG", desc: "Massive campus banter", posts: "34.2K" },
-  { id: 2, tag: "#SolvaPayouts", desc: "Students flexing task cash-outs", posts: "18.9K" },
-  { id: 3, tag: "#ExamPrep2026", desc: "200L Economics study packs", posts: "12.1K" },
-  { id: 4, tag: "#AsakeInOAU", desc: "Campus entertainment news", posts: "8.5K" },
-  { id: 5, tag: "#HustleTips", desc: "Creative ideas to earn money", posts: "5.1K" },
+const FALLBACK_TRENDING = [
+  { id: 1, tag: "#SolvaPayouts", desc: "Students flexing task cash-outs", posts: "Trending" },
+  { id: 2, tag: "#ExamPrep2026", desc: "Study materials and tips", posts: "Trending" },
+  { id: 3, tag: "#HustleTips", desc: "Creative ideas to earn money", posts: "Trending" },
 ];
+
+/** Normalise a raw post from the API into a consistent shape */
+const normalisePost = (raw: any) => ({
+  id: String(raw._id ?? raw.id ?? ""),
+  author: raw.author?.fullName ?? raw.author?.name ?? raw.authorName ?? "Anonymous",
+  campus: raw.campus ?? raw.author?.campus ?? "",
+  avatar: raw.author?.profilePic ?? raw.authorAvatar ?? "https://i.pravatar.cc/150?img=1",
+  badge: raw.badge ?? "none",
+  date: raw.createdAt
+    ? new Date(raw.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })
+    : "Just now",
+  content: raw.content ?? raw.text ?? raw.message ?? "",
+  image: raw.image ?? raw.imageUrl ?? undefined,
+  views: raw.views ? `${raw.views}` : null,
+  likes: Array.isArray(raw.likes) ? raw.likes.length : (raw.likesCount ?? 0),
+  isLikedByMe: Array.isArray(raw.likes)
+    ? raw.likes.includes(raw._currentUserId)
+    : (raw.isLiked ?? false),
+  commentsCount: raw.commentsCount ?? (Array.isArray(raw.comments) ? raw.comments.length : 0),
+  authorId: String(raw.author?._id ?? raw.author?.id ?? raw.authorId ?? ""),
+});
 
 export default function FilterScreen() {
   const router = useRouter();
-  const posts = useCommunityStore((state) => state.posts);
+  const queryClient = useQueryClient();
+  const authUser = useAuthStore((state) => state.user);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // ── Fetch posts ──
+  const {
+    data: rawPosts = [],
+    isLoading,
+    isError,
+    refetch,
+    isRefetching,
+  } = useQuery({
+    queryKey: ["community-posts"],
+    queryFn: fetchCommunityPosts,
+    refetchOnWindowFocus: true,
+  });
+
+  const posts = rawPosts.map(normalisePost);
+
+  // ── Fetch trending ──
+  const { data: trendingData = [] } = useQuery({
+    queryKey: ["community-trending"],
+    queryFn: fetchTrendingTopics,
+    refetchOnWindowFocus: true,
+  });
+
+  const trendingTopics = trendingData.length > 0 
+    ? trendingData.map((t: any, i: number) => ({
+        id: i + 1,
+        tag: t.hashtag || t.tag || `#${t.name}`,
+        desc: t.description || "Trending on campus",
+        posts: t.count ? `${t.count}` : "Trending",
+      }))
+    : FALLBACK_TRENDING;
+
+  // ── Like mutation ──
+  const likeMutation = useMutation({
+    mutationFn: (postId: string) => likePost(postId),
+    onMutate: async (postId) => {
+      // Optimistic update
+      await queryClient.cancelQueries({ queryKey: ["community-posts"] });
+      const previous = queryClient.getQueryData(["community-posts"]);
+      queryClient.setQueryData(["community-posts"], (old: any[]) =>
+        (old ?? []).map((p: any) => {
+          const id = String(p._id ?? p.id ?? "");
+          if (id !== postId) return p;
+          const liked = p.isLiked ?? false;
+          const likes = Array.isArray(p.likes) ? p.likes.length : (p.likesCount ?? 0);
+          return { ...p, isLiked: !liked, likesCount: liked ? likes - 1 : likes + 1 };
+        })
+      );
+      return { previous };
+    },
+    onError: (_err, _id, ctx) => {
+      queryClient.setQueryData(["community-posts"], ctx?.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+    },
+  });
+
+  // ── Delete mutation ──
+  const deleteMutation = useMutation({
+    mutationFn: (postId: string) => deletePost(postId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+    },
+  });
+
+  const handleMoreOptions = useCallback(
+    (post: ReturnType<typeof normalisePost>) => {
+      const myId = String(authUser?.profile?.userID ?? authUser?.profile?._id ?? "");
+      const isOwn = myId && post.authorId === myId;
+      const options: any[] = [{ text: "Cancel", style: "cancel" }];
+      if (isOwn) {
+        options.unshift({
+          text: "Delete Post",
+          style: "destructive",
+          onPress: () => deleteMutation.mutate(post.id),
+        });
+      }
+      if (Platform.OS === "web") {
+        window.alert("Post options coming soon!");
+      } else {
+        Alert.alert("Post Options", "", options);
+      }
+    },
+    [authUser, deleteMutation]
+  );
 
   const filteredPosts = posts.filter(
     (post) =>
@@ -40,6 +150,7 @@ export default function FilterScreen() {
       post.campus.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // ── RENDER ──
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* ── HEADER ── */}
@@ -71,28 +182,29 @@ export default function FilterScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       >
         {/* ── TRENDING CARD ── */}
         <View style={styles.trendingCard}>
-          {/* Top Line */}
           <View style={styles.trendingHeader}>
             <Text style={styles.trendingTitle}>TRENDING ON CAMPUS</Text>
             <MaterialCommunityIcons name="fire" size={mscale(16)} color="#C026D3" />
           </View>
-          <Text style={styles.trendingSubtitle}>
-            RANKED 1 TO 5 - REAL-TIME STUDENT BUZZ
-          </Text>
-
-          {/* Trending Items */}
+          <Text style={styles.trendingSubtitle}>RANKED 1 TO 5 - REAL-TIME STUDENT BUZZ</Text>
           <View style={styles.trendingList}>
-            {TRENDING_TOPICS.map((item) => (
+            {trendingTopics.slice(0, 5).map((item: any) => (
               <View key={item.id} style={styles.trendingItem}>
                 <Text style={styles.trendingRank}>{item.id}.</Text>
                 <View style={styles.trendingTextContainer}>
                   <Text style={styles.trendingTag}>{item.tag}</Text>
-                  <Text style={styles.trendingDesc}>
-                    {`{${item.desc} • ${item.posts} posts}`}
-                  </Text>
+                  <Text style={styles.trendingDesc}>{`${item.desc} • ${item.posts} posts`}</Text>
                 </View>
               </View>
             ))}
@@ -101,106 +213,143 @@ export default function FilterScreen() {
 
         {/* ── POSTS ── */}
         <View style={styles.postsContainer}>
-          {filteredPosts.length > 0 ? (
+          {isLoading ? (
+            <View style={styles.centeredState}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.stateText}>Loading posts...</Text>
+            </View>
+          ) : isError ? (
+            <View style={styles.centeredState}>
+              <FeatherIcon name="wifi-off" size={mscale(36)} color="#ccc" style={{ marginBottom: hscale(12) }} />
+              <Text style={styles.stateText}>Couldn't load posts.</Text>
+              <TouchableOpacity onPress={() => refetch()} style={styles.retryBtn}>
+                <Text style={styles.retryBtnText}>Tap to retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : filteredPosts.length === 0 ? (
+            <View style={styles.centeredState}>
+              <FeatherIcon
+                name={searchQuery ? "search" : "users"}
+                size={mscale(40)}
+                color="#ccc"
+                style={{ marginBottom: hscale(12) }}
+              />
+              <Text style={styles.stateText}>
+                {searchQuery
+                  ? `No results for "${searchQuery}"`
+                  : "Be the first to post something! 🎉"}
+              </Text>
+            </View>
+          ) : (
             filteredPosts.map((post) => (
-              <TouchableOpacity 
-                key={post.id} 
+              <TouchableOpacity
+                key={post.id}
                 style={styles.postCard}
                 activeOpacity={0.8}
-                onPress={() => router.push("/post-details")}
+                onPress={() =>
+                  router.push({ pathname: "/post-details", params: { postId: post.id } })
+                }
               >
                 {/* Post Header */}
                 <View style={styles.postHeader}>
-                  <Image source={{ uri: post.avatar }} style={styles.avatar} />
+                  {post.avatar === "https://i.pravatar.cc/150?img=1" ? (
+                    <View style={styles.avatarPlaceholder}>
+                      <Text style={styles.avatarPlaceholderText}>
+                        {post.author.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Image source={{ uri: post.avatar }} style={styles.avatar} />
+                  )}
                   <View style={styles.postMetaInfo}>
                     <View style={styles.authorRow}>
                       <Text style={styles.authorName}>
-                        {post.author} • {post.campus}
+                        {post.author}
+                        {post.campus ? ` • ${post.campus}` : ""}
                       </Text>
                       {post.badge === "blue-check" ? (
-                        <MaterialCommunityIcons
-                          name="check-decagram"
-                          size={mscale(14)}
-                          color="#1DA1F2"
-                          style={{ marginLeft: 4 }}
-                        />
+                        <MaterialCommunityIcons name="check-decagram" size={mscale(14)} color="#1DA1F2" style={{ marginLeft: 4 }} />
                       ) : post.badge === "pink-star" ? (
-                        <MaterialCommunityIcons
-                          name="star-circle"
-                          size={mscale(14)}
-                          color="#D81B60"
-                          style={{ marginLeft: 4 }}
-                        />
+                        <MaterialCommunityIcons name="star-circle" size={mscale(14)} color="#D81B60" style={{ marginLeft: 4 }} />
                       ) : null}
                     </View>
                     <Text style={styles.postDate}>{post.date}</Text>
                   </View>
-                  <TouchableOpacity style={styles.moreBtn} hitSlop={8}>
+                  <TouchableOpacity
+                    style={styles.moreBtn}
+                    hitSlop={8}
+                    onPress={() => handleMoreOptions(post)}
+                  >
                     <FeatherIcon name="more-horizontal" size={mscale(18)} color="#999" />
                   </TouchableOpacity>
                 </View>
 
                 {/* Post Content */}
-                <Text style={styles.postContent}>
-                  {post.highlight ? post.content.split(post.highlight).map((part, index, arr) => (
-                    <Text key={index}>
-                      {part}
-                      {index < arr.length - 1 && (
-                        <Text
-                          style={[
-                            styles.postHighlight,
-                            { color: post.badge === "blue-check" ? "#D81B60" : colors.primary },
-                          ]}
-                        >
-                          {post.highlight}
-                        </Text>
-                      )}
-                    </Text>
-                  )) : post.content}
-                </Text>
+                {post.content ? (
+                  <Text style={styles.postContent}>{post.content}</Text>
+                ) : null}
 
-                {/* Attached Image (If any) */}
-                {post.image && (
-                   <Image source={{ uri: post.image }} style={styles.postAttachedImage} />
-                )}
+                {/* Attached Image */}
+                {post.image ? (
+                  <Image source={{ uri: post.image }} style={styles.postAttachedImage} />
+                ) : null}
 
                 {/* Views */}
-                {post.views && (
+                {post.views ? (
                   <View style={styles.viewsContainer}>
                     <Text style={styles.viewsCount}>{post.views}</Text>
                     <Text style={styles.viewsLabel}> Views</Text>
                   </View>
-                )}
+                ) : null}
 
                 {/* Action Buttons */}
                 <View style={styles.actionsRow}>
-                  <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
+                  {/* Comment */}
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    hitSlop={8}
+                    onPress={() =>
+                      router.push({ pathname: "/post-details", params: { postId: post.id } })
+                    }
+                  >
                     <FeatherIcon name="message-square" size={mscale(18)} color="#888" />
+                    {post.commentsCount > 0 && (
+                      <Text style={styles.actionCount}>{post.commentsCount}</Text>
+                    )}
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
-                    <FeatherIcon name="repeat" size={mscale(18)} color="#888" />
+
+                  {/* Like */}
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    hitSlop={8}
+                    onPress={() => post.id && likeMutation.mutate(post.id)}
+                  >
+                    <FeatherIcon
+                      name="heart"
+                      size={mscale(18)}
+                      color={post.isLikedByMe ? "#F91880" : "#888"}
+                    />
+                    {post.likes > 0 && (
+                      <Text style={[styles.actionCount, post.isLikedByMe && { color: "#F91880" }]}>
+                        {post.likes}
+                      </Text>
+                    )}
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
-                    <FeatherIcon name="heart" size={mscale(18)} color="#888" />
-                  </TouchableOpacity>
+
+                  {/* Share */}
                   <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
                     <FeatherIcon name="share" size={mscale(18)} color="#888" />
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
             ))
-          ) : (
-            <View style={styles.emptyContainer}>
-              <FeatherIcon name="search" size={mscale(40)} color="#ccc" style={{ marginBottom: hscale(12) }} />
-              <Text style={styles.emptyText}>No results found for "{searchQuery}"</Text>
-            </View>
           )}
         </View>
       </ScrollView>
 
       {/* ── FLOATING ACTION BUTTON ── */}
-      <TouchableOpacity 
-        style={styles.fab} 
+      <TouchableOpacity
+        style={styles.fab}
         activeOpacity={0.8}
         onPress={() => router.push("/create-post")}
       >
@@ -215,7 +364,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FAFAFA",
   },
-  
+
   // ── Header ──
   header: {
     alignItems: "center",
@@ -225,7 +374,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(22),
-    color: "#301934", // Dark purple
+    color: "#301934",
     letterSpacing: 0.5,
   },
   headerSubtitle: {
@@ -239,7 +388,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F3F0F7", // Pale grey-purple
+    backgroundColor: "#F3F0F7",
     marginHorizontal: wscale(20),
     marginBottom: hscale(12),
     borderRadius: mscale(22),
@@ -259,20 +408,18 @@ const styles = StyleSheet.create({
     }),
   },
 
-  scrollView: {
-    flex: 1,
-  },
+  scrollView: { flex: 1 },
   scrollContent: {
     paddingHorizontal: wscale(20),
-    paddingBottom: hscale(100), // Space for FAB and bottom tabs
+    paddingBottom: hscale(100),
   },
 
-  // ── Trending Card ──
+  // ── Trending ──
   trendingCard: {
     backgroundColor: "#fff",
     borderRadius: mscale(12),
     borderWidth: 1.5,
-    borderColor: "#C026D3", // Magenta/pink border
+    borderColor: "#C026D3",
     padding: mscale(20),
     marginTop: hscale(10),
     marginBottom: hscale(24),
@@ -291,7 +438,7 @@ const styles = StyleSheet.create({
   trendingTitle: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(12),
-    color: "#301934", // Deep purple
+    color: "#301934",
     letterSpacing: 0.5,
   },
   trendingSubtitle: {
@@ -300,27 +447,20 @@ const styles = StyleSheet.create({
     color: "#999",
     marginBottom: hscale(16),
   },
-  trendingList: {
-    gap: hscale(16),
-  },
-  trendingItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+  trendingList: { gap: hscale(16) },
+  trendingItem: { flexDirection: "row", alignItems: "flex-start" },
   trendingRank: {
     fontFamily: "Inter-Medium",
     fontSize: mscale(14),
-    color: "#CBA4DC", // Light purple
+    color: "#CBA4DC",
     width: wscale(20),
     marginTop: hscale(2),
   },
-  trendingTextContainer: {
-    flex: 1,
-  },
+  trendingTextContainer: { flex: 1 },
   trendingTag: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(14),
-    color: "#4A148C", // Dark purple
+    color: "#4A148C",
     marginBottom: hscale(4),
   },
   trendingDesc: {
@@ -330,8 +470,30 @@ const styles = StyleSheet.create({
   },
 
   // ── Posts ──
-  postsContainer: {
-    gap: hscale(16),
+  postsContainer: { gap: hscale(16) },
+  centeredState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: hscale(48),
+  },
+  stateText: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    color: "#999",
+    textAlign: "center",
+    marginTop: hscale(8),
+  },
+  retryBtn: {
+    marginTop: hscale(16),
+    backgroundColor: colors.primary,
+    paddingHorizontal: wscale(24),
+    paddingVertical: hscale(10),
+    borderRadius: mscale(20),
+  },
+  retryBtnText: {
+    fontFamily: "Inter-SemiBold",
+    fontSize: mscale(14),
+    color: "#fff",
   },
   postCard: {
     backgroundColor: "#fff",
@@ -357,6 +519,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#5E17EB",
   },
+  avatarPlaceholder: {
+    width: wscale(40),
+    height: wscale(40),
+    borderRadius: wscale(20),
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarPlaceholderText: {
+    color: "#fff",
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(16),
+  },
   postMetaInfo: {
     flex: 1,
     marginLeft: wscale(12),
@@ -370,16 +545,14 @@ const styles = StyleSheet.create({
   authorName: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(14),
-    color: "#301934", // Dark purple
+    color: "#301934",
   },
   postDate: {
     fontFamily: "Inter-Regular",
     fontSize: mscale(11),
     color: "#999",
   },
-  moreBtn: {
-    padding: 4,
-  },
+  moreBtn: { padding: 4 },
   postContent: {
     fontFamily: "Inter-Regular",
     fontSize: mscale(14),
@@ -394,9 +567,6 @@ const styles = StyleSheet.create({
     marginBottom: hscale(16),
     backgroundColor: "#F0EEF5",
   },
-  postHighlight: {
-    fontFamily: "Inter-Medium",
-  },
   viewsContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -405,7 +575,7 @@ const styles = StyleSheet.create({
   viewsCount: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(12),
-    color: "#5E17EB", // Purple
+    color: "#5E17EB",
   },
   viewsLabel: {
     fontFamily: "Inter-Regular",
@@ -415,27 +585,21 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: wscale(8),
+    justifyContent: "space-around",
     borderTopWidth: 1,
     borderTopColor: "#FAFAFA",
     paddingTop: hscale(12),
   },
   actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: wscale(4),
     padding: mscale(6),
   },
-
-  // Empty Results
-  emptyContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: hscale(40),
-  },
-  emptyText: {
-    fontFamily: "Inter-Regular",
-    fontSize: mscale(14),
-    color: "#999",
-    textAlign: "center",
+  actionCount: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(13),
+    color: "#888",
   },
 
   // ── FAB ──
@@ -446,7 +610,7 @@ const styles = StyleSheet.create({
     width: wscale(56),
     height: wscale(56),
     borderRadius: wscale(28),
-    backgroundColor: "#5E17EB", // Solva purple
+    backgroundColor: "#5E17EB",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#5E17EB",

@@ -1,5 +1,6 @@
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 type TaskCardProps = {
   brandName: string;
@@ -17,14 +18,13 @@ type TaskCardProps = {
 const PRIMARY = "#6207A0";
 
 const formatNaira = (amount: number) => {
-  return `\u20A6 ${amount.toLocaleString("en-NG")}`;
+  return `₦ ${amount.toLocaleString("en-NG")}`;
 };
 
 export default function TaskCard({
   brandName,
   campaignType,
   title,
-  subtitle,
   timeLeft,
   spotsLeft,
   totalPool,
@@ -36,51 +36,73 @@ export default function TaskCard({
 
   return (
     <View style={styles.card}>
-      <View style={styles.contentRow}>
-        <View style={styles.leftColumn}>
-          <View style={styles.brandRow}>
-            <View style={styles.logoWrap}>
-              {logo ? (
-                <Image source={logo} style={styles.logo} resizeMode="contain" />
-              ) : (
-                <View style={styles.logoPlaceholder} />
-              )}
-            </View>
+
+      {/* ── Top row: Logo + Brand + Tag │ Total pool ── */}
+      <View style={styles.topRow}>
+        {/* Left: logo box + brand name + tag stacked */}
+        <View style={styles.topLeft}>
+          <View style={styles.logoBox}>
+            {logo ? (
+              <Image source={logo} style={styles.logo} resizeMode="contain" />
+            ) : (
+              <View style={styles.logoPlaceholder} />
+            )}
+          </View>
+
+          <View style={styles.brandTagCol}>
             <Text style={styles.brandName} numberOfLines={1}>
               {brandName}
             </Text>
-          </View>
-
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{campaignType}</Text>
-          </View>
-
-          <Text style={styles.title}>{title}</Text>
-          {!!subtitle && <Text style={styles.title}>{subtitle}</Text>}
-
-          <View style={styles.metaRow}>
-            <Text style={[styles.timeText, isUrgent ? styles.urgent : styles.safe]}>
-              {timeLeft}
-            </Text>
-            <Text style={styles.spotText}>{spotsLeft}</Text>
+            <View style={styles.tag}>
+              <Text style={styles.tagText}>{campaignType}</Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.rightColumn}>
+        {/* Right: Total pool label + amount */}
+        <View style={styles.topRight}>
           <Text style={styles.poolLabel}>Total pool</Text>
           <Text style={styles.poolValue}>{formatNaira(totalPool)}</Text>
-
-          <View style={styles.bannerWrap}>
-            {banner ? (
-              <Image source={banner} style={styles.banner} resizeMode="cover" />
-            ) : (
-              <View style={styles.bannerPlaceholder} />
-            )}
-          </View>
         </View>
       </View>
 
-      <Pressable style={styles.button} onPress={onPress}>
+      {/* ── Middle row: Title + Banner image ── */}
+      <View style={styles.midRow}>
+        <Text style={styles.title} numberOfLines={2}>
+          {title}
+        </Text>
+        <View style={styles.bannerWrap}>
+          {banner ? (
+            <Image source={banner} style={styles.banner} resizeMode="cover" />
+          ) : (
+            <View style={styles.bannerPlaceholder} />
+          )}
+        </View>
+      </View>
+
+      {/* ── Meta row: clock + time │ people + spots ── */}
+      <View style={styles.metaRow}>
+        <Ionicons
+          name="time-outline"
+          size={16}
+          color={isUrgent ? "#E8354A" : "#E8354A"}
+          style={styles.metaIcon}
+        />
+        <Text style={[styles.metaText, isUrgent && styles.urgentText]}>
+          {timeLeft}
+        </Text>
+
+        <Ionicons
+          name="people-outline"
+          size={16}
+          color="#555"
+          style={[styles.metaIcon, { marginLeft: 20 }]}
+        />
+        <Text style={styles.metaText}>{spotsLeft}</Text>
+      </View>
+
+      {/* ── Full-width View Task button ── */}
+      <Pressable style={styles.button} onPress={onPress} android_ripple={{ color: "#4a0080" }}>
         <Text style={styles.buttonText}>View Task</Text>
       </Pressable>
     </View>
@@ -90,123 +112,109 @@ export default function TaskCard({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    paddingHorizontal: 14,
-    paddingTop: 18,
-    paddingBottom: 14,
-    marginBottom: 24,
-    shadowColor: "#000000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 4,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    marginBottom: 20,
+    shadowColor: "#9B59B6",
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
-  contentRow: {
+
+  // ── Top row ──
+  topRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 14,
+    marginBottom: 14,
   },
-  leftColumn: {
-    flex: 1,
-    paddingRight: 4,
-  },
-  rightColumn: {
-    width: 128,
-    alignItems: "flex-end",
-  },
-  brandRow: {
+  topLeft: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
     gap: 10,
   },
-  logoWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#F3F3F3",
+  logoBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: "#F3EEF9",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   logo: {
-    width: 30,
-    height: 30,
+    width: 46,
+    height: 46,
+    borderRadius: 10,
   },
   logoPlaceholder: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     backgroundColor: "#D8D8D8",
   },
-  brandName: {
+  brandTagCol: {
     flex: 1,
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#111111",
+    gap: 6,
+  },
+  brandName: {
+    fontSize: 15,
+    fontFamily: "Inter-SemiBold",
+    color: "#1A1A2E",
   },
   tag: {
-    marginTop: 10,
-    marginLeft: 44,
     alignSelf: "flex-start",
-    minWidth: 154,
-    borderWidth: 1,
-    borderColor: "#9EA29E",
-    borderRadius: 5,
-    paddingVertical: 2,
+    backgroundColor: "#F0EDF6",
+    borderRadius: 20,
+    paddingVertical: 3,
     paddingHorizontal: 12,
-    backgroundColor: "#F4F7F2",
   },
   tagText: {
-    fontSize: 12,
-    color: "#8FB38C",
+    fontSize: 11,
+    fontFamily: "Inter-Medium",
+    color: "#6207A0",
   },
-  title: {
-    marginTop: 14,
-    marginLeft: 10,
-    fontSize: 16,
-    lineHeight: 23,
-    fontWeight: "800",
-    color: "#111111",
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    marginTop: 20,
-    marginLeft: 10,
-  },
-  timeText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  safe: {
-    color: "#49A15E",
-  },
-  urgent: {
-    color: "#FF2B2B",
-  },
-  spotText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#111111",
+  topRight: {
+    alignItems: "flex-end",
+    marginLeft: 8,
   },
   poolLabel: {
-    fontSize: 12,
-    color: "#3C3C3C",
+    fontSize: 11,
+    fontFamily: "Inter-Regular",
+    color: "#888",
+    marginBottom: 2,
   },
   poolValue: {
-    marginTop: 2,
-    fontSize: 18,
-    fontWeight: "900",
+    fontSize: 20,
+    fontFamily: "Inter-Bold",
     color: PRIMARY,
   },
+
+  // ── Mid row ──
+  midRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    gap: 12,
+  },
+  title: {
+    flex: 1,
+    fontSize: 18,
+    fontFamily: "Inter-Bold",
+    color: "#1A1A2E",
+    lineHeight: 25,
+  },
   bannerWrap: {
-    width: 74,
-    height: 98,
-    marginTop: 12,
-    borderRadius: 6,
+    width: 82,
+    height: 82,
+    borderRadius: 12,
     overflow: "hidden",
-    backgroundColor: "#EEEEEE",
+    backgroundColor: "#E8E0F0",
   },
   banner: {
     width: "100%",
@@ -214,23 +222,39 @@ const styles = StyleSheet.create({
   },
   bannerPlaceholder: {
     flex: 1,
-    backgroundColor: "#E4E4E4",
+    backgroundColor: "#DDD5EC",
   },
+
+  // ── Meta row ──
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  metaIcon: {
+    marginRight: 4,
+  },
+  metaText: {
+    fontSize: 13,
+    fontFamily: "Inter-SemiBold",
+    color: "#555",
+  },
+  urgentText: {
+    color: "#E8354A",
+  },
+
+  // ── Button ──
   button: {
-    alignSelf: "flex-start",
-    marginTop: 20,
-    marginLeft: 10,
-    minWidth: 154,
-    borderRadius: 12,
     backgroundColor: PRIMARY,
-    paddingVertical: 18,
-    paddingHorizontal: 28,
+    borderRadius: 14,
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
   },
   buttonText: {
-    fontSize: 16,
-    fontWeight: "800",
+    fontSize: 15,
+    fontFamily: "Inter-SemiBold",
     color: "#FFFFFF",
+    letterSpacing: 0.3,
   },
 });

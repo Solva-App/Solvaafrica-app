@@ -21,10 +21,10 @@ export default function CertificateOnCourses() {
       id: "1",
       title: "Smartphone Video Editing for Content Creators",
       badge: "FREE",
-      badgeColor: "#008A20", // Green
+      badgeColor: "#1EA464",
       iconName: "movie-open-edit",
-      iconBg: "#EFE8F4", // Light purple
-      iconColor: "#301934",
+      iconBg: "#EDE5F6",
+      iconColor: "#6207A0",
       duration: "2 Hours",
       level: "Introductory",
       price: "FREE",
@@ -34,10 +34,10 @@ export default function CertificateOnCourses() {
       id: "2",
       title: "Introduction to Digital Marketing",
       badge: "FULL CERTIFICATE",
-      badgeColor: "#666",
+      badgeColor: "#6207A0",
       iconName: "cursor-default-click",
-      iconBg: "#E3F8EA", // Light mint
-      iconColor: "#008A20",
+      iconBg: "#EDE5F6",
+      iconColor: "#6207A0",
       duration: "3 Hours",
       level: null,
       price: "#4,000",
@@ -47,10 +47,10 @@ export default function CertificateOnCourses() {
       id: "3",
       title: "Coding for Beginners: HTML & CSS",
       badge: "PROJECT INCLUDED",
-      badgeColor: "#666",
+      badgeColor: "#6207A0",
       iconName: "code-tags",
-      iconBg: "#F8E3FA", // Light pink
-      iconColor: "#301934",
+      iconBg: "#EDE5F6",
+      iconColor: "#6207A0",
       duration: "4 Hours",
       level: null,
       price: "#5,000",
@@ -60,10 +60,10 @@ export default function CertificateOnCourses() {
       id: "4",
       title: "Graphic Design Fundamentals with Canva",
       badge: "FULL ACCESS",
-      badgeColor: "#666",
+      badgeColor: "#6207A0",
       iconName: "brush-variant",
-      iconBg: "#EBE5F0", // Light grey/purple
-      iconColor: "#888",
+      iconBg: "#EDE5F6",
+      iconColor: "#6207A0",
       duration: "2 Hours",
       level: null,
       price: "#3,000",
@@ -76,7 +76,7 @@ export default function CertificateOnCourses() {
       {/* ── HEADER ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
-          <FeatherIcon name="arrow-left" size={mscale(24)} color="#301934" />
+          <FeatherIcon name="arrow-left" size={mscale(24)} color="#6207A0" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Course Academy</Text>
       </View>
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontFamily: "Inter-SemiBold",
     fontSize: mscale(18),
-    color: "#301934",
+    color: "#6207A0",
     marginLeft: wscale(16),
   },
   scrollView: {
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   currentPrice: {
     fontFamily: "Inter-Bold",
     fontSize: mscale(16),
-    color: "#301934",
+    color: "#6207A0",
   },
   originalPrice: {
     fontFamily: "Inter-Medium",
@@ -256,9 +256,9 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   startBtn: {
-    backgroundColor: "#301934", // Deep purple
+    backgroundColor: "#6207A0",
     paddingVertical: hscale(14),
-    borderRadius: mscale(24), // Pill shaped like in the design
+    borderRadius: mscale(24),
     alignItems: "center",
     justifyContent: "center",
   },

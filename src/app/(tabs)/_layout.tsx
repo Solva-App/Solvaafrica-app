@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import TabIcon from '@expo/vector-icons/Ionicons';
+import MCIcon from '@expo/vector-icons/MaterialCommunityIcons';
 import { Text } from 'react-native';
 import { colors } from '@/src/constants/theme';
 import { hscale, mscale } from '@/src/helpers/metric';
@@ -64,10 +65,10 @@ export default function TabsLayout() {
             </Text>
           ),
           tabBarIcon: ({ focused, color }) => (
-            <TabIcon
-              name={focused ? 'people' : 'people-outline'}
+            <MCIcon
+              name={focused ? 'account-group' : 'account-group-outline'}
               color={color}
-              size={mscale(22)}
+              size={mscale(24)}
             />
           ),
         }}
@@ -88,10 +89,10 @@ export default function TabsLayout() {
             </Text>
           ),
           tabBarIcon: ({ focused, color }) => (
-            <TabIcon
-              name={focused ? 'diamond' : 'diamond-outline'}
+            <MCIcon
+              name={focused ? 'medal' : 'medal-outline'}
               color={color}
-              size={mscale(22)}
+              size={mscale(24)}
             />
           ),
         }}

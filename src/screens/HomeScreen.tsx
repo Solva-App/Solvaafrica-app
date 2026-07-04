@@ -12,6 +12,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import Icon from "@expo/vector-icons/MaterialCommunityIcons";
 import IonIcon from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
+
+import { AUTH_API_CLIENT } from "../api/apiClient";
 
 import { colors } from "../constants/theme";
 import { hscale, mscale, wscale } from "../helpers/metric";
@@ -26,6 +29,12 @@ const ACADEMIC_TILES = [
     label: "STUDY\nMATERIALS",
     icon: "book-outline" as const,
     route: "/courses/courses",
+    dark: false,
+  },
+  {
+    label: "COURSE\nACADEMY",
+    icon: "school-outline" as const,
+    route: "/courses/academy",
     dark: false,
   },
   {
@@ -64,22 +73,35 @@ const GIGS_TILES = [
   },
 ];
 
-// ─── Mock active gigs (replace with API data later) ──────────────────────────
-const ACTIVE_GIGS = [
-  {
-    id: "1",
-    title: "Brand Ambassador",
-    brand: "Red Bull Campus",
-    amount: "₦24,500",
-    status: "IN PROGRESS",
-    icon: "bullhorn-outline" as const,
-  },
-];
-
 export default function HomeScreen() {
   const user = useAuthStore((state) => state.user);
   const userProfile = user?.profile;
   const firstName = userProfile?.fullName?.trim()?.split(" ")?.[0] || "User";
+
+  const [activeGigs, setActiveGigs] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        const res = await AUTH_API_CLIENT.get("/tasks");
+        if (res.status === 200) {
+          const tasksList = res.data?.data || res.data || [];
+          const activeTasks = tasksList.slice(0, 3).map((task: any) => ({
+            id: task._id || task.id || Math.random().toString(),
+            title: task.title || task.name || "Task",
+            brand: task.brand || task.company || task.employer || "Company",
+            amount: task.amount || task.budget || task.price || "₦--",
+            status: task.status || "AVAILABLE",
+            icon: task.icon || "bullhorn-outline",
+          }));
+          setActiveGigs(activeTasks);
+        }
+      } catch (err) {
+        console.log("Error fetching tasks for home:", err);
+      }
+    };
+    fetchTasks();
+  }, []);
 
   return (
     <ScrollView
@@ -192,21 +214,25 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {ACTIVE_GIGS.map((gig) => (
-        <Pressable key={gig.id} style={styles.gigCard}>
-          <View style={styles.gigIconWrap}>
-            <Icon name={gig.icon} size={mscale(20)} color={colors.primary} />
-          </View>
-          <View style={styles.gigInfo}>
-            <Text style={styles.gigTitle}>{gig.title}</Text>
-            <Text style={styles.gigBrand}>{gig.brand}</Text>
-          </View>
-          <View style={styles.gigAmountWrap}>
-            <Text style={styles.gigAmount}>{gig.amount}</Text>
-            <Text style={styles.gigStatus}>{gig.status}</Text>
-          </View>
-        </Pressable>
-      ))}
+      {activeGigs.length === 0 ? (
+        <Text style={{ textAlign: 'center', marginVertical: 20, color: '#888', fontFamily: 'Inter-Regular' }}>No active gigs available right now.</Text>
+      ) : (
+        activeGigs.map((gig) => (
+          <Pressable key={gig.id} style={styles.gigCard}>
+            <View style={styles.gigIconWrap}>
+              <Icon name={gig.icon} size={mscale(20)} color={colors.primary} />
+            </View>
+            <View style={styles.gigInfo}>
+              <Text style={styles.gigTitle}>{gig.title}</Text>
+              <Text style={styles.gigBrand}>{gig.brand}</Text>
+            </View>
+            <View style={styles.gigAmountWrap}>
+              <Text style={styles.gigAmount}>{gig.amount}</Text>
+              <Text style={styles.gigStatus}>{gig.status}</Text>
+            </View>
+          </Pressable>
+        ))
+      )}
     </ScrollView>
   );
 }
