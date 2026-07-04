@@ -10,7 +10,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { globalStyles } from "@/src/styles/global";
 import { hscale, mscale, wscale } from "@/src/helpers/metric";
 import { colors } from "@/src/constants/theme";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { AUTH_API_CLIENT } from "@/src/api/apiClient";
 import { ServiceType } from "@/src/types";
 import ErrorModal from "@/src/components/errorModal";
@@ -42,10 +42,14 @@ const getIconName = (
 
 export default function FindServices() {
   const router = useRouter();
+  const { category } = useLocalSearchParams<{ category?: string }>();
   const [services, setServices] = useState<ServiceType[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorVisible, setErrorVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string | null>(
+    category ?? null
+  );
 
   useEffect(() => {
     const getServices = async () => {
@@ -69,6 +73,7 @@ export default function FindServices() {
 
   const handleServicePress = useCallback(
     (service: ServiceType) => {
+      setActiveCategory(service.title);
       router.push({
         pathname: "/(services)/find-service/service-details",
         params: {
@@ -114,26 +119,33 @@ export default function FindServices() {
               <View style={styles.headerRightSpacer} />
             </View>
           }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              onPress={() => handleServicePress(item)}
-              activeOpacity={0.9}
-              style={styles.row}
-            >
-              <View style={styles.iconCol}>
-                <MaterialCommunityIcons
-                  name={getIconName(item.title)}
-                  size={mscale(30)}
-                  color={colors.primary}
-                />
-              </View>
+          renderItem={({ item }) => {
+            const isActive =
+              activeCategory?.toLowerCase() === item.title?.toLowerCase();
+            return (
+              <TouchableOpacity
+                onPress={() => handleServicePress(item)}
+                activeOpacity={0.9}
+                style={[
+                  styles.row,
+                  isActive && styles.rowActive,
+                ]}
+              >
+                <View style={[styles.iconCol, isActive && styles.iconColActive]}>
+                  <MaterialCommunityIcons
+                    name={getIconName(item.title)}
+                    size={mscale(30)}
+                    color={isActive ? "#fff" : colors.primary}
+                  />
+                </View>
 
-              <View style={styles.textCol}>
-                <Text style={styles.title}>{item.title}</Text>
-                <Text style={styles.desc}>{item.description}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+                <View style={styles.textCol}>
+                  <Text style={[styles.title, isActive && styles.titleActive]}>{item.title}</Text>
+                  <Text style={[styles.desc, isActive && styles.descActive]}>{item.description}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          }}
           ListEmptyComponent={
             <Text style={styles.emptyText}>
               No services available at the moment.
@@ -230,5 +242,21 @@ const styles = StyleSheet.create({
     marginTop: hscale(20),
     fontFamily: "Inter-Regular",
     color: colors.black,
+  },
+  rowActive: {
+    backgroundColor: colors.primary,
+    borderRadius: mscale(12),
+    paddingHorizontal: wscale(12),
+    paddingVertical: hscale(10),
+    marginHorizontal: -wscale(12),
+  },
+  iconColActive: {
+    // icon turns white when active
+  },
+  titleActive: {
+    color: "#fff",
+  },
+  descActive: {
+    color: "rgba(255,255,255,0.8)",
   },
 });

@@ -30,10 +30,42 @@ export default function ServicesScreen() {
   }
 
   const categories = [
-    { id: 1, name: "Design", icon: <MaterialCommunityIcons name="palette-outline" size={24} color={colors.primary} /> },
-    { id: 2, name: "Development", icon: <Feather name="code" size={24} color={colors.primary} /> },
-    { id: 3, name: "Writing", icon: <MaterialCommunityIcons name="pencil-box-outline" size={24} color={colors.primary} /> },
-    { id: 4, name: "Marketing", icon: <MaterialCommunityIcons name="bullhorn-outline" size={24} color={colors.primary} /> },
+    {
+      id: 1,
+      name: "Design",
+      icon: <MaterialCommunityIcons name="palette-outline" size={24} color={colors.primary} />,
+      service: { id: 1, title: "Graphics & Design", description: "Logo & Brand Identity, Gaming, UI/UX, Social Media Design, Presentation Design, Illustration, Flyers & Posters" },
+    },
+    {
+      id: 2,
+      name: "Development",
+      icon: <Feather name="code" size={24} color={colors.primary} />,
+      service: { id: 2, title: "Programming & Tech", description: "Web Development, Mobile Apps, Software Engineering, APIs, Database, Automation, Scripts & Bots" },
+    },
+    {
+      id: 3,
+      name: "Writing",
+      icon: <MaterialCommunityIcons name="pencil-box-outline" size={24} color={colors.primary} />,
+      service: { id: 3, title: "Writing & Translation", description: "Content Writing, Copywriting, Proofreading, CVs & Cover Letters, Translation, Academic Writing" },
+    },
+    {
+      id: 4,
+      name: "Marketing",
+      icon: <MaterialCommunityIcons name="bullhorn-outline" size={24} color={colors.primary} />,
+      service: { id: 4, title: "Digital Marketing", description: "Social Media Marketing, SEO, Email Marketing, Ads & Campaigns, Influencer Marketing, Brand Strategy" },
+    },
+    {
+      id: 5,
+      name: "Video",
+      icon: <MaterialCommunityIcons name="video-plus-outline" size={24} color={colors.primary} />,
+      service: { id: 5, title: "Video & Animation", description: "Video Editing, Motion Graphics, 2D/3D Animation, Intros & Outros, Explainer Videos, Short Reels" },
+    },
+    {
+      id: 6,
+      name: "Business",
+      icon: <MaterialCommunityIcons name="briefcase-variant-outline" size={24} color={colors.primary} />,
+      service: { id: 6, title: "Business", description: "Business Plans, Virtual Assistant, Market Research, Data Entry, Project Management, Consulting" },
+    },
   ];
 
   return (
@@ -107,7 +139,7 @@ export default function ServicesScreen() {
               <Text style={styles.sectionTitle}>Popular Categories</Text>
               <Text style={styles.sectionSubtitle}>Explore top rated services</Text>
             </View>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/(services)/find-service")}>
               <Text style={styles.seeAllText}>See all</Text>
             </TouchableOpacity>
           </View>
@@ -118,7 +150,17 @@ export default function ServicesScreen() {
             contentContainerStyle={styles.categoriesList}
           >
             {categories.map((cat) => (
-              <TouchableOpacity key={cat.id} style={styles.categoryItem} activeOpacity={0.8}>
+              <TouchableOpacity
+                key={cat.id}
+                style={styles.categoryItem}
+                activeOpacity={0.8}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(services)/find-service/service-details",
+                    params: { service: JSON.stringify(cat.service) },
+                  })
+                }
+              >
                 <View style={styles.categoryIconBox}>
                   {cat.icon}
                 </View>
