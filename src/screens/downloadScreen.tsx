@@ -100,7 +100,7 @@ export default function DownloadScreen() {
     } else {
       router.push({
         pathname: "/image-viewer",
-        params: { id: index }, // ✅ pass index only
+        params: { id: index, imageSource: normalizedPath }, // ✅ pass both or just imageSource
       });
     }
   };

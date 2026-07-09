@@ -9,6 +9,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Share,
+  Alert,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -18,13 +21,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import ToastManager, { Toast } from "toastify-react-native";
 
 import { hscale, mscale, wscale } from "../helpers/metric";
-import { useRef } from "react";
-import { useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
   fetchPostById,
   likePost,
+  unlikePost,
   commentOnPost,
   likeComment,
+  unlikeComment,
+  viewPost,
+  deletePost,
+  deleteComment,
+  voteOnPoll,
 } from "../api/queries";
 import { useAuthStore } from "../stores/authStore";
 import { colors } from "../constants/theme";
@@ -41,6 +49,9 @@ export default function PostDetailsScreen() {
     authUser?.profile?.avatar;
 
   const [commentText, setCommentText] = useState("");
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyingToName, setReplyingToName] = useState<string | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -56,18 +67,31 @@ export default function PostDetailsScreen() {
     enabled: !!postId,
   });
 
-  // Normalise
+  const postAuthorId = postData ? String(postData.userId ?? postData.author?._id ?? postData.author?.id ?? postData.user?._id ?? postData.user?.id ?? postData.authorId ?? "").trim() : "";
+  const myIdStr = String(authUser?.profile?.userID ?? authUser?.profile?.id ?? authUser?.profile?._id ?? authUser?.user?.userID ?? authUser?.user?.id ?? authUser?.user?._id ?? "").trim();
+  const isMyPost = myIdStr !== "" && postAuthorId !== "" && myIdStr === postAuthorId;
+  const liveAvatar = isMyPost ? (authUser?.profile?.profilePic ?? authUser?.profile?.avatar) : null;
+
   const post = postData
     ? {
         id: String(postData._id ?? postData.id ?? ""),
         author:
+          postData.username ??
           postData.author?.fullName ??
           postData.author?.name ??
+          postData.author?.username ??
+          postData.user?.fullName ??
+          postData.user?.name ??
           postData.authorName ??
           "Anonymous",
-        campus: postData.campus ?? postData.author?.campus ?? "",
+        campus: postData.campus ?? postData.author?.campus ?? postData.user?.campus ?? "",
         avatar:
+          liveAvatar ??
+          postData.profilePic ??
           postData.author?.profilePic ??
+          postData.author?.avatar ??
+          postData.user?.profilePic ??
+          postData.user?.avatar ??
           postData.authorAvatar ??
           "https://i.pravatar.cc/150?img=1",
         badge: postData.badge ?? "none",
@@ -79,56 +103,277 @@ export default function PostDetailsScreen() {
             })
           : "Just now",
         content: postData.content ?? postData.text ?? "",
-        image: postData.image ?? postData.imageUrl ?? null,
-        views: postData.views ?? null,
-        likes: Array.isArray(postData.likes)
-          ? postData.likes.length
-          : postData.likesCount ?? 0,
-        isLikedByMe: postData.isLiked ?? false,
-        comments: Array.isArray(postData.comments)
-          ? postData.comments
-          : [],
+        image: (postData.mediaUrl && postData.mediaUrl.length > 0) ? postData.mediaUrl : 
+               (postData.image && postData.image.length > 0) ? postData.image : 
+               (postData.imageUrl && postData.imageUrl.length > 0) ? postData.imageUrl : undefined,
+        views: postData.views ? `${postData.views}` : null,
+        likes: typeof postData.likes === "number" ? postData.likes : Array.isArray(postData.likes) ? postData.likes.length : postData.likesCount ?? 0,
+        isLikedByMe: postData.liked ?? postData.isLiked ?? false,
+        views: typeof postData.views === "number" ? postData.views : (postData.viewsCount ?? 0),
+        poll: (() => {
+          if (!postData.poll) return null;
+          try {
+            return typeof postData.poll === "string" ? JSON.parse(postData.poll) : postData.poll;
+          } catch {
+            return null;
+          }
+        })(),
+        comments: Array.isArray(postData.comments) ? postData.comments : [],
       }
     : null;
 
-  // ── Like post ──
+
+  // ── Like post (optimistic toggle) ──
   const likeMutation = useMutation({
     mutationFn: () => likePost(postId!),
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["post", postId] });
+      const previous = queryClient.getQueryData(["post", postId]);
+      queryClient.setQueryData(["post", postId], (old: any) => {
+        if (!old) return old;
+        const currentLiked = old.liked ?? old.isLiked ?? false;
+        const currentLikes = typeof old.likes === "number" ? old.likes : (old.likesCount ?? 0);
+        return {
+          ...old,
+          liked: !currentLiked,
+          isLiked: !currentLiked,
+          likes: currentLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1,
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context: any) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["post", postId], context.previous);
+      }
+      Toast.error("Couldn't like post. Try again.");
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["post", postId] });
       queryClient.invalidateQueries({ queryKey: ["community-posts"] });
     },
-    onError: () => Toast.error("Couldn't like post. Try again."),
+  });
+
+
+  // ── Auto-increment view count when post is opened ──
+  useEffect(() => {
+    if (postId) {
+      viewPost(postId).catch(() => {}); // fire-and-forget, ignore errors
+    }
+  }, [postId]);
+
+  // ── Vote Poll mutation ──
+  const votePollMutation = useMutation({
+    mutationFn: (optionIndex: number) => voteOnPoll({ postId: postId!, optionIndex }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      Toast.success("Vote recorded!");
+    },
+    onError: () => Toast.error("Failed to vote."),
   });
 
   // ── Comment on post ──
   const commentMutation = useMutation({
-    mutationFn: (message: string) => commentOnPost({ id: postId!, message }),
+    mutationFn: (message: string) => commentOnPost({ id: postId!, message, parentid: replyingToId || undefined }),
+    onMutate: async (message) => {
+      await queryClient.cancelQueries({ queryKey: ["post", postId] });
+      const previousPost = queryClient.getQueryData(["post", postId]);
+      queryClient.setQueryData(["post", postId], (old: any) => {
+        if (!old) return old;
+        const newComment = {
+          _id: `temp-${Date.now()}`,
+          content: message,
+          author: authUser?.profile,
+          createdAt: new Date().toISOString(),
+          likesCount: 0,
+          isLiked: false,
+          parentid: replyingToId
+        };
+        return { ...old, comments: [...(old.comments || []), newComment] };
+      });
+      return { previousPost };
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["post", postId] });
-      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
       setCommentText("");
+      setReplyingToId(null);
+      setReplyingToName(null);
+      Toast.success("Comment posted!");
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
     },
-    onError: () => Toast.error("Couldn't post comment. Try again."),
+    onError: (err: any, variables, context: any) => {
+      if (context?.previousPost) {
+        queryClient.setQueryData(["post", postId], context.previousPost);
+      }
+      Toast.error(err?.response?.data?.message || err?.message || "Couldn't post comment.");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+    }
   });
 
-  // ── Like a comment ──
+  // ── Like / Unlike a comment ──
   const likeCommentMutation = useMutation({
-    mutationFn: (commentId: string) => likeComment(commentId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+    mutationFn: ({ commentId, isLiked }: { commentId: string; isLiked: boolean }) =>
+      isLiked ? unlikeComment(commentId) : likeComment(commentId),
+    onMutate: async ({ commentId, isLiked }) => {
+      await queryClient.cancelQueries({ queryKey: ["post", postId] });
+      const previousPost = queryClient.getQueryData(["post", postId]);
+      queryClient.setQueryData(["post", postId], (old: any) => {
+        if (!old) return old;
+        const updateCommentTree = (comments: any[], targetId: string): any[] => {
+          return comments.map((c: any) => {
+            const cId = String(c._id ?? c.id);
+            if (cId === targetId) {
+              const likesCount = Array.isArray(c.likes) ? c.likes.length : (c.likesCount ?? 0);
+              return {
+                ...c,
+                isLiked: !isLiked,
+                liked: !isLiked,
+                likesCount: isLiked ? Math.max(0, likesCount - 1) : likesCount + 1
+              };
+            }
+            if (c.replies && Array.isArray(c.replies)) {
+              return { ...c, replies: updateCommentTree(c.replies, targetId) };
+            }
+            return c;
+          });
+        };
+        return { ...old, comments: updateCommentTree(old.comments || [], commentId) };
+      });
+      return { previousPost };
     },
+    onError: (err: any, variables, context: any) => {
+      if (context?.previousPost) {
+        queryClient.setQueryData(["post", postId], context.previousPost);
+      }
+      Toast.error(err?.response?.data?.message || err?.message || "Couldn't update comment like.");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+    }
   });
+
+  // ── Delete post ──
+  const deleteMutation = useMutation({
+    mutationFn: () => deletePost(postId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      Toast.success("Post deleted.");
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(tabs)/community" as any);
+      }
+    },
+    onError: () => {
+      Toast.error("Failed to delete post. You can only delete your own posts.");
+    }
+  });
+
+  // ── Delete comment ──
+  const deleteCommentMutation = useMutation({
+    mutationFn: (commentId: string) => {
+      if (commentId.startsWith("temp-")) {
+        return Promise.reject(new Error("Please wait a moment for the server to finish saving this reply before deleting it."));
+      }
+      return deleteComment(commentId);
+    },
+    onMutate: async (commentId) => {
+      await queryClient.cancelQueries({ queryKey: ["post", postId] });
+      const previousPost = queryClient.getQueryData(["post", postId]);
+      queryClient.setQueryData(["post", postId], (old: any) => {
+        if (!old) return old;
+        const filterCommentTree = (comments: any[], targetId: string): any[] => {
+          return comments.filter((c: any) => String(c._id ?? c.id) !== targetId).map((c: any) => {
+            if (c.replies && Array.isArray(c.replies)) {
+              return { ...c, replies: filterCommentTree(c.replies, targetId) };
+            }
+            return c;
+          });
+        };
+        return { ...old, comments: filterCommentTree(old.comments || [], commentId) };
+      });
+      return { previousPost };
+    },
+    onSuccess: () => {
+      Toast.success("Comment deleted.");
+    },
+    onError: (err: any, variables, context: any) => {
+      if (context?.previousPost) {
+        queryClient.setQueryData(["post", postId], context.previousPost);
+      }
+      Toast.error(err?.response?.data?.message || err?.message || "Failed to delete comment.");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+    }
+  });
+
+  const handleMoreOptions = () => {
+    setIsMenuOpen((prev) => !prev);
+  };
+
+  const confirmDeletePost = () => {
+    setIsMenuOpen(false);
+    if (Platform.OS === "web") {
+      const confirmDelete = window.confirm("Are you sure you want to delete this post?");
+      if (confirmDelete) {
+        deleteMutation.mutate();
+      }
+      return;
+    }
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => deleteMutation.mutate() },
+    ]);
+  };
+
+  const confirmReportPost = () => {
+    setIsMenuOpen(false);
+    router.push("/(tabs)/settings?section=support" as any);
+  };
+
+  const handleDeleteComment = (commentId: string) => {
+    if (Platform.OS === "web") {
+      const confirmDelete = window.confirm("Delete this comment?");
+      if (confirmDelete) {
+        deleteCommentMutation.mutate(commentId);
+      }
+      return;
+    }
+
+    Alert.alert("Delete Comment", "Are you sure you want to delete this comment?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => deleteCommentMutation.mutate(commentId) },
+    ]);
+  };
 
   const handleSendComment = () => {
     if (!commentText.trim()) return;
     commentMutation.mutate(commentText.trim());
   };
 
-  const handleReplyToComment = (author: string) => {
+  const handleReplyToComment = (author: string, commentId: string) => {
+    setReplyingToId(commentId);
+    setReplyingToName(author);
     setCommentText(`@${author} `);
-    inputRef.current?.focus();
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleShare = async () => {
+    if (!post) return;
+    try {
+      await Share.share({
+        message: `Check out this post on Solva by ${post.author}:\n\n"${post.content}"\n\nJoin the conversation on Solva!`,
+      });
+    } catch (error: any) {
+      Toast.error("Failed to share post.");
+    }
   };
 
   // ── LOADING / ERROR states ──
@@ -166,7 +411,16 @@ export default function PostDetailsScreen() {
 
       {/* ── HEADER ── */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity 
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(tabs)/community" as any);
+            }
+          }} 
+          hitSlop={8}
+        >
           <FeatherIcon name="arrow-left" size={mscale(24)} color="#301934" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Post</Text>
@@ -220,14 +474,89 @@ export default function PostDetailsScreen() {
                 </View>
                 <Text style={styles.postDate}>{post.date}</Text>
               </View>
+              <View>
+                <TouchableOpacity style={styles.moreBtn} hitSlop={8} onPress={handleMoreOptions}>
+                  <FeatherIcon name="more-horizontal" size={mscale(18)} color="#999" />
+                </TouchableOpacity>
+
+                <Modal
+                  visible={isMenuOpen}
+                  transparent={true}
+                  animationType="fade"
+                  onRequestClose={() => setIsMenuOpen(false)}
+                >
+                  <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setIsMenuOpen(false)}
+                  >
+                    <View style={styles.modalPopout}>
+                      <TouchableOpacity style={styles.popoutMenuItem} onPress={confirmDeletePost}>
+                        <FeatherIcon name="trash-2" size={mscale(16)} color="#FF3B30" />
+                        <Text style={[styles.popoutMenuText, { color: "#FF3B30" }]}>Delete Post</Text>
+                      </TouchableOpacity>
+                      <View style={styles.popoutDivider} />
+                      <TouchableOpacity style={styles.popoutMenuItem} onPress={confirmReportPost}>
+                        <FeatherIcon name="flag" size={mscale(16)} color="#333" />
+                        <Text style={styles.popoutMenuText}>Report Post</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                </Modal>
+              </View>
             </View>
 
             {post.content ? (
               <Text style={styles.postContent}>{post.content}</Text>
             ) : null}
 
+            {/* Attached Image(s) */}
             {post.image ? (
-              <Image source={{ uri: post.image }} style={styles.postImage} />
+              Array.isArray(post.image) ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+                  {post.image.map((uri: string, idx: number) => (
+                    <TouchableOpacity
+                      key={idx}
+                      activeOpacity={0.9}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/image-viewer",
+                          params: { imageSource: uri },
+                        })
+                      }
+                      style={{ marginRight: 12 }}
+                    >
+                      <Image source={{ uri }} style={[styles.postImage, { width: 300, marginTop: 0 }]} resizeMode="cover" />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              ) : (
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/image-viewer",
+                      params: { imageSource: post.image },
+                    })
+                  }
+                >
+                  <Image source={{ uri: post.image }} style={styles.postImage} resizeMode="contain" />
+                </TouchableOpacity>
+              )
+            ) : null}
+
+            {post.poll && Array.isArray(post.poll) && post.poll.length > 0 ? (
+              <View style={styles.pollContainer}>
+                {post.poll.map((opt: string, idx: number) => (
+                  <TouchableOpacity 
+                    key={idx} 
+                    style={styles.pollOption}
+                    onPress={() => votePollMutation.mutate(idx)}
+                  >
+                    <Text style={styles.pollOptionText}>{opt}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             ) : null}
 
             {post.views ? (
@@ -250,10 +579,28 @@ export default function PostDetailsScreen() {
                 )}
               </TouchableOpacity>
 
+              {/* Views */}
+              <View style={styles.actionBtn}>
+                <FeatherIcon name="eye" size={mscale(18)} color="#888" />
+                {post.views > 0 && (
+                  <Text style={styles.actionText}>{post.views}</Text>
+                )}
+              </View>
+
               <TouchableOpacity
                 style={styles.actionBtn}
                 hitSlop={8}
-                onPress={() => likeMutation.mutate()}
+                onPress={() => {
+                  if (post.isLikedByMe) {
+                    // Already liked — call DELETE to unlike
+                    unlikePost(postId!).then(() => {
+                      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+                      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+                    }).catch(() => Toast.error("Couldn't unlike. Try again."));
+                  } else {
+                    likeMutation.mutate();
+                  }
+                }}
                 disabled={likeMutation.isPending}
               >
                 <FeatherIcon
@@ -273,17 +620,24 @@ export default function PostDetailsScreen() {
                 )}
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
+              <TouchableOpacity style={styles.actionBtn} hitSlop={8} onPress={handleShare}>
                 <FeatherIcon name="share" size={mscale(18)} color="#888" />
               </TouchableOpacity>
             </View>
           </View>
 
           {/* ── REPLYING TEXT ── */}
-          <Text style={styles.replyingText}>
-            Replying to{" "}
-            <Text style={{ color: "#5E17EB" }}>@{post.author}</Text>
-          </Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingRight: wscale(20) }}>
+            <Text style={styles.replyingText}>
+              Replying to{" "}
+              <Text style={{ color: "#5E17EB" }}>@{replyingToId ? replyingToName : post.author}</Text>
+            </Text>
+            {replyingToId && (
+              <TouchableOpacity onPress={() => { setReplyingToId(null); setReplyingToName(null); setCommentText(""); }}>
+                <Text style={{ color: "#888", fontSize: mscale(12), paddingVertical: 4 }}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* ── COMMENTS THREAD ── */}
           <View style={styles.commentsSection}>
@@ -292,96 +646,240 @@ export default function PostDetailsScreen() {
                 No comments yet. Be the first to reply!
               </Text>
             ) : (
-              post.comments.map((comment: any, idx: number) => {
-                const commentId = String(comment._id ?? comment.id ?? idx);
-                const commentAuthor =
-                  comment.author?.fullName ??
-                  comment.author?.name ??
-                  comment.name ??
-                  "User";
-                const commentAvatar =
-                  comment.author?.profilePic ??
-                  comment.avatar ??
-                  "https://i.pravatar.cc/150?img=1";
-                const commentContent =
-                  comment.content ?? comment.message ?? comment.text ?? "";
-                const commentLikes = Array.isArray(comment.likes)
-                  ? comment.likes.length
-                  : comment.likesCount ?? 0;
-                const commentIsLiked = comment.isLiked ?? false;
-                const commentTime = comment.createdAt
-                  ? new Date(comment.createdAt).toLocaleDateString("en-NG", {
-                      day: "numeric",
-                      month: "short",
-                    })
-                  : "Just now";
-                const hasThreadBelow = idx < post.comments.length - 1;
+              (() => {
+                // Helper to build a tree if backend returns a flat list with parentId
+                const buildCommentTree = (flatComments: any[]) => {
+                  const commentMap = new Map();
+                  const roots: any[] = [];
+                  flatComments.forEach((c, i) => {
+                    commentMap.set(String(c._id ?? c.id ?? i), { ...c, calculatedReplies: c.replies ? [...c.replies] : [] });
+                  });
+                  flatComments.forEach((c, i) => {
+                    const cId = String(c._id ?? c.id ?? i);
+                    const parentId = c.parentId ?? c.parentid;
+                    if (parentId && commentMap.has(String(parentId))) {
+                      commentMap.get(String(parentId)).calculatedReplies.push(commentMap.get(cId));
+                    } else {
+                      roots.push(commentMap.get(cId));
+                    }
+                  });
+                  return roots;
+                };
 
-                return (
-                  <View key={commentId} style={styles.commentRow}>
-                    {/* Left col: Avatar & Thread Line */}
-                    <View style={styles.commentLeftCol}>
-                      {commentAvatar === "https://i.pravatar.cc/150?img=1" ? (
-                        <View style={styles.commentAvatarPlaceholder}>
-                          <Text style={styles.avatarPlaceholderText}>
-                            {commentAuthor.charAt(0).toUpperCase()}
-                          </Text>
+                const commentTree = buildCommentTree(post.comments);
+
+                const renderCommentNode = (comment: any, idx: number, isReply = false, isLast = false) => {
+                  const commentId = String(comment._id ?? comment.id ?? idx);
+                  const commentAuthor =
+                    comment.author?.fullName ??
+                    comment.author?.name ??
+                    comment.author?.username ??
+                    comment.user?.fullName ??
+                    comment.user?.name ??
+                    comment.user?.username ??
+                    comment.authorName ??
+                    comment.username ??
+                    comment.name ??
+                    "User";
+                  const commentAuthorId = String(
+                    comment.userId ??
+                    comment.authorId ??
+                    comment.author?.userID ??
+                    comment.author?._id ??
+                    comment.author?.id ??
+                    comment.user?.userID ??
+                    comment.user?._id ??
+                    comment.user?.id ??
+                    comment.user_id ??
+                    comment.author_id ??
+                    (typeof comment.user === "string" ? comment.user : "") ??
+                    (typeof comment.author === "string" ? comment.author : "") ??
+                    ""
+                  ).trim();
+                  
+                  const isMyComment = myIdStr !== "" && commentAuthorId !== "" && myIdStr === commentAuthorId;
+                  const liveCommentAvatar = isMyComment ? (authUser?.profile?.profilePic ?? authUser?.profile?.avatar) : null;
+
+                  const commentAvatar =
+                    liveCommentAvatar ??
+                    comment.author?.profilePic ??
+                    comment.author?.avatar ??
+                    comment.user?.profilePic ??
+                    comment.user?.avatar ??
+                    comment.profilePic ??
+                    comment.avatar ??
+                    "https://i.pravatar.cc/150?img=1";
+                  const commentContent =
+                    comment.content ?? comment.message ?? comment.text ?? "";
+                  const commentLikes = Array.isArray(comment.likes)
+                    ? comment.likes.length
+                    : comment.likesCount ?? 0;
+                  const commentIsLiked = comment.isLiked ?? comment.liked ?? false;
+                  const commentTime = comment.createdAt
+                    ? new Date(comment.createdAt).toLocaleDateString("en-NG", {
+                        day: "numeric",
+                        month: "short",
+                      })
+                    : "Just now";
+                  const hasThreadBelow = !isLast;
+
+                  return (
+                    <View key={commentId}>
+                      <View style={[styles.commentRow, isReply && { marginLeft: wscale(40), marginTop: hscale(8) }]}>
+                        {/* Left col: Avatar & Thread Line */}
+                        <View style={[styles.commentLeftCol, isReply && { width: wscale(28) }]}>
+                          {commentAvatar === "https://i.pravatar.cc/150?img=1" ? (
+                            <View style={[styles.commentAvatarPlaceholder, isReply && { width: wscale(28), height: wscale(28), borderRadius: wscale(14) }]}>
+                              <Text style={[styles.avatarPlaceholderText, isReply && { fontSize: mscale(12) }]}>
+                                {commentAuthor.charAt(0).toUpperCase()}
+                              </Text>
+                            </View>
+                          ) : (
+                            <Image
+                              source={{ uri: commentAvatar }}
+                              style={[styles.commentAvatar, isReply && { width: wscale(28), height: wscale(28), borderRadius: wscale(14) }]}
+                            />
+                          )}
+                          {hasThreadBelow && !isReply && <View style={styles.threadLine} />}
                         </View>
-                      ) : (
-                        <Image
-                          source={{ uri: commentAvatar }}
-                          style={styles.commentAvatar}
-                        />
+
+                        {/* Right col: Content */}
+                        <View style={styles.commentRightCol}>
+                          <View style={styles.commentHeader}>
+                            <Text style={styles.commentAuthor}>
+                              {commentAuthor}{" "}
+                              <Text style={styles.commentCampus}>
+                                ▪ {comment.campus ?? comment.author?.campus ?? ""}
+                              </Text>
+                            </Text>
+                            <Text style={styles.commentTime}>{commentTime}</Text>
+                          </View>
+
+                          <Text style={styles.commentContent}>{commentContent}</Text>
+
+                          <View style={styles.commentActions}>
+                            <TouchableOpacity
+                              style={styles.likeBtn}
+                              hitSlop={8}
+                              onPress={() => likeCommentMutation.mutate({ commentId, isLiked: commentIsLiked })}
+                            >
+                              <FeatherIcon
+                                name="heart"
+                                size={mscale(14)}
+                                color={commentIsLiked ? "#F91880" : "#666"}
+                              />
+                              <Text
+                                style={[
+                                  styles.likeCount,
+                                  commentIsLiked && { color: "#F91880" },
+                                ]}
+                              >
+                                {commentLikes > 0 ? commentLikes : ""}
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              hitSlop={8}
+                              onPress={() => handleReplyToComment(commentAuthor, commentId)}
+                            >
+                              <Text style={styles.replyBtnText}>Reply</Text>
+                            </TouchableOpacity>
+
+                            {(() => {
+                              const myId = String(
+                                authUser?.profile?.userID ??
+                                authUser?.profile?.id ??
+                                authUser?.profile?._id ??
+                                authUser?.user?.userID ??
+                                authUser?.user?._id ??
+                                authUser?.user?.id ??
+                                authUser?.userID ??
+                                authUser?._id ??
+                                authUser?.id ??
+                                ""
+                              ).trim();
+
+                              const myName = String(
+                                authUser?.profile?.fullName ?? 
+                                authUser?.profile?.name ?? 
+                                authUser?.profile?.username ?? 
+                                authUser?.user?.fullName ?? 
+                                authUser?.user?.name ?? 
+                                authUser?.user?.username ?? 
+                                authUser?.fullName ?? 
+                                authUser?.name ?? 
+                                authUser?.username ?? 
+                                "User"
+                              ).trim();
+
+                              const myEmail = String(
+                                authUser?.profile?.email ?? 
+                                authUser?.user?.email ?? 
+                                authUser?.email ?? 
+                                ""
+                              ).trim();
+
+                              const authorId = String(
+                                comment.userId ??
+                                comment.authorId ??
+                                comment.author?.userID ??
+                                comment.author?._id ??
+                                comment.author?.id ??
+                                comment.user?.userID ??
+                                comment.user?._id ??
+                                comment.user?.id ??
+                                comment.user_id ??
+                                comment.author_id ??
+                                (typeof comment.user === "string" ? comment.user : "") ??
+                                (typeof comment.author === "string" ? comment.author : "") ??
+                                ""
+                              ).trim();
+                              
+                              const authorEmail = String(
+                                comment.author?.email ?? 
+                                comment.user?.email ?? 
+                                comment.email ?? 
+                                ""
+                              ).trim();
+                              
+                              const isOwn = 
+                                (myId !== "" && authorId !== "" && authorId === myId) || 
+                                (myEmail !== "" && authorEmail !== "" && authorEmail === myEmail) ||
+                                String(comment._id ?? comment.id ?? "").startsWith("temp-") ||
+                                (myName !== "User" && commentAuthor !== "User" && myName === commentAuthor);
+                              
+                              if (isOwn) {
+                                return (
+                                  <TouchableOpacity
+                                    hitSlop={8}
+                                    onPress={() => handleDeleteComment(commentId)}
+                                  >
+                                    <FeatherIcon name="trash-2" size={mscale(14)} color="#FF3B30" />
+                                  </TouchableOpacity>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Render Nested Replies */}
+                      {comment.calculatedReplies && comment.calculatedReplies.length > 0 && (
+                        <View style={{ marginBottom: hscale(8) }}>
+                          {comment.calculatedReplies.map((reply: any, rIdx: number) => 
+                            renderCommentNode(reply, rIdx, true, rIdx === comment.calculatedReplies.length - 1)
+                          )}
+                        </View>
                       )}
-                      {hasThreadBelow && <View style={styles.threadLine} />}
                     </View>
+                  );
+                };
 
-                    {/* Right col: Content */}
-                    <View style={styles.commentRightCol}>
-                      <View style={styles.commentHeader}>
-                        <Text style={styles.commentAuthor}>
-                          {commentAuthor}{" "}
-                          <Text style={styles.commentCampus}>
-                            ▪ {comment.campus ?? comment.author?.campus ?? ""}
-                          </Text>
-                        </Text>
-                        <Text style={styles.commentTime}>{commentTime}</Text>
-                      </View>
-
-                      <Text style={styles.commentContent}>{commentContent}</Text>
-
-                      <View style={styles.commentActions}>
-                        <TouchableOpacity
-                          style={styles.likeBtn}
-                          hitSlop={8}
-                          onPress={() => likeCommentMutation.mutate(commentId)}
-                        >
-                          <FeatherIcon
-                            name="heart"
-                            size={mscale(14)}
-                            color={commentIsLiked ? "#F91880" : "#666"}
-                          />
-                          <Text
-                            style={[
-                              styles.likeCount,
-                              commentIsLiked && { color: "#F91880" },
-                            ]}
-                          >
-                            {commentLikes > 0 ? commentLikes : ""}
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          hitSlop={8}
-                          onPress={() => handleReplyToComment(commentAuthor)}
-                        >
-                          <Text style={styles.replyBtnText}>Reply</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
+                return commentTree.map((comment: any, idx: number) => 
+                  renderCommentNode(comment, idx, false, idx === commentTree.length - 1)
                 );
-              })
+              })()
             )}
           </View>
         </ScrollView>
@@ -511,6 +1009,9 @@ const styles = StyleSheet.create({
     color: "#999",
     marginTop: hscale(2),
   },
+  moreBtn: {
+    padding: mscale(4),
+  },
   postContent: {
     fontFamily: "Inter-Regular",
     fontSize: mscale(14),
@@ -524,6 +1025,24 @@ const styles = StyleSheet.create({
     borderRadius: mscale(12),
     marginBottom: hscale(16),
     backgroundColor: "#F0EEF5",
+  },
+  pollContainer: {
+    marginTop: hscale(8),
+    marginBottom: hscale(16),
+  },
+  pollOption: {
+    borderWidth: 1,
+    borderColor: "#EAE6F0",
+    borderRadius: mscale(8),
+    paddingVertical: hscale(10),
+    paddingHorizontal: wscale(12),
+    marginBottom: hscale(8),
+    backgroundColor: "#FAFAFA",
+  },
+  pollOptionText: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(14),
+    color: "#301934",
   },
   viewsContainer: {
     flexDirection: "row",
@@ -545,8 +1064,53 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-around",
     borderTopWidth: 1,
-    borderTopColor: "#FAFAFA",
     paddingTop: hscale(12),
+  },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: wscale(4),
+    padding: mscale(6),
+  },
+  actionCount: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(13),
+    color: "#888",
+  },
+
+  // ── Popout Menu Modal ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalPopout: {
+    backgroundColor: "#fff",
+    borderRadius: mscale(16),
+    paddingVertical: hscale(8),
+    width: wscale(200),
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  popoutMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: hscale(12),
+    paddingHorizontal: wscale(16),
+    gap: wscale(8),
+  },
+  popoutDivider: {
+    height: 1,
+    backgroundColor: "#F0EEF5",
+  },
+  popoutMenuText: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(14),
+    color: "#333",
   },
   actionBtn: {
     flexDirection: "row",

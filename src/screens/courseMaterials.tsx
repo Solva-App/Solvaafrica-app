@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useNavigation, router } from "expo-router";
-import { View, FlatList, Dimensions, Pressable } from "react-native";
+import { View, FlatList, Dimensions, Pressable, Platform } from "react-native";
 import { useEffect, useState } from "react";
 import { Image } from "expo-image";
 
@@ -7,6 +7,8 @@ import { colors, screenHorizontalPadding } from "../constants/theme";
 import { getImageSource } from "../helpers/getImageSource";
 import EmptyStateView from "../components/emptyStateView";
 import LoadingView from "../components/loadingView";
+import NativePdfViewer from "../components/NativePdfViewer";
+import { normalizeRemoteFileUrl } from "../helpers/normalizeRemoteFileUrl";
 import { hscale, mscale } from "../helpers/metric";
 import { AUTH_API_CLIENT } from "../api/apiClient";
 import ErrorModal from "../components/errorModal";
@@ -70,8 +72,8 @@ export default function CourseMaterials() {
           )}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          numColumns={3}
-          columnWrapperStyle={{ gap: 8 }}
+          numColumns={2}
+          columnWrapperStyle={{ gap: 12 }}
           contentContainerStyle={{ paddingHorizontal: screenHorizontalPadding }}
         />
       )}
@@ -106,21 +108,43 @@ const CourseItemView = ({
       },
     });
   };
+  const normalizedUrl = normalizeRemoteFileUrl(url);
+  const isPdf = normalizedUrl?.toLowerCase().includes('.pdf') ?? false;
+
+  const width = Dimensions.get("window").width / 2 - screenHorizontalPadding * 1.5;
+  const commonStyle = {
+    aspectRatio: 0.75, // Standard document aspect ratio
+    width,
+    borderWidth: 1,
+    borderColor: "#E2CFEA",
+    marginBottom: hscale(12),
+    borderRadius: mscale(8),
+    overflow: "hidden" as const,
+  };
+
   return (
     <Pressable onPress={handleImagePress}>
-      <Image
-        source={getImageSource(url)}
-        transition={1000}
-        contentFit="cover"
-        style={{
-          aspectRatio: 1,
-          width: Dimensions.get("window").width / 3 - screenHorizontalPadding,
-          borderWidth: 2,
-          borderColor: colors.black,
-          marginBottom: hscale(8),
-          borderRadius: mscale(4),
-        }}
-      />
+      <View pointerEvents="none" style={commonStyle}>
+        {Platform.OS === 'web' ? (
+          <iframe
+            src={normalizedUrl}
+            style={{ width: '100%', height: '100%', border: 'none' }}
+            title={title}
+          />
+        ) : isPdf ? (
+          <NativePdfViewer
+            uri={normalizedUrl}
+            style={{ flex: 1, backgroundColor: "#f5f5f5" }}
+          />
+        ) : (
+          <Image
+            source={getImageSource(normalizedUrl)}
+            transition={1000}
+            contentFit="cover"
+            style={{ flex: 1 }}
+          />
+        )}
+      </View>
     </Pressable>
   );
 };

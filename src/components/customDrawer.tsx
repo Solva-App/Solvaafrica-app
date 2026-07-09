@@ -20,7 +20,7 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState, useEffect } from "react";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import ToastManager, { Toast } from "toastify-react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -28,6 +28,7 @@ import { useQuery } from "@tanstack/react-query";
 import { colors } from "../constants/theme";
 import { hscale, mscale, wscale } from "../helpers/metric";
 import { useAuthStore } from "../stores/authStore";
+import { AUTH_API_CLIENT } from "../api/apiClient";
 import { getUserSubscriptionStatus } from "../api/queries";
 import LoadingView from "./loadingView";
 import ErrorModal from "./errorModal";
@@ -48,6 +49,15 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
   const [openSection, setOpenSection] = useState<OpenSection>(null);
   const [profileImageUri, setProfileImageUri] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
+
+  const { section } = useLocalSearchParams<{ section?: string }>();
+
+  // Auto-open section if navigated with ?section=support
+  useEffect(() => {
+    if (section === "support") {
+      setOpenSection("support");
+    }
+  }, [section]);
 
   const authUser = useAuthStore((state) => state.user);
 
@@ -83,12 +93,22 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
     const loadImage = async () => {
       try {
         const saved = await AsyncStorage.getItem("profileImageUri");
-        if (saved) setProfileImageUri(saved);
+        if (saved) {
+          setProfileImageUri(saved);
+        } else if (authUser?.profile?.profilePic || authUser?.profile?.avatar) {
+          setProfileImageUri(authUser.profile.profilePic || authUser.profile.avatar);
+        }
       } catch {}
     };
 
     loadUser();
     loadImage();
+  }, [authUser]);
+
+  useEffect(() => {
+    if (authUser?.profile?.profilePic || authUser?.profile?.avatar) {
+      setProfileImageUri(prev => prev || authUser.profile.profilePic || authUser.profile.avatar);
+    }
   }, [authUser]);
 
   const nameParts = displayName.trim().split(" ");
@@ -110,10 +130,57 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
         quality: 0.8,
       });
       if (!result.canceled && result.assets[0]?.uri) {
+        setIsLoading(true);
         const uri = result.assets[0].uri;
-        setProfileImageUri(uri);
-        await AsyncStorage.setItem("profileImageUri", uri);
-        Toast.success("Profile picture updated!");
+        
+        try {
+          const formData = new FormData();
+          let filename = uri.split("/").pop() ?? "profile.jpg";
+          if (!filename.includes(".")) filename += ".jpg";
+          const match = /\.(\w+)$/.exec(filename);
+          const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+          formData.append("profilePic", {
+            uri,
+            name: filename,
+            type,
+          } as any);
+
+          const res = await AUTH_API_CLIENT.patch("/users", formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
+
+          if (res.status === 200 || res.status === 201) {
+            setProfileImageUri(uri);
+            await AsyncStorage.setItem("profileImageUri", uri);
+            
+            // Instantly update the main app state so it reflects everywhere
+            const cachedUser = await AsyncStorage.getItem("User");
+            const user = cachedUser ? JSON.parse(cachedUser) : useAuthStore.getState().user;
+            const updatedUser = { 
+              ...user, 
+              profile: { 
+                ...user?.profile, 
+                profilePic: res.data?.data?.profilePic ?? res.data?.profilePic ?? uri,
+                avatar: res.data?.data?.profilePic ?? res.data?.profilePic ?? uri 
+              } 
+            };
+            
+            useAuthStore.setState((state) => ({ ...state, user: updatedUser }));
+            await AsyncStorage.setItem("User", JSON.stringify(updatedUser));
+            
+            Toast.success("Profile picture updated!");
+          } else {
+             Toast.error("Failed to update profile picture on server.");
+          }
+        } catch (err: any) {
+           console.log("Upload error:", err?.response?.data || err?.message);
+           Toast.error("Error uploading profile picture.");
+        } finally {
+           setIsLoading(false);
+        }
       }
     } catch {
       Toast.error("Could not open photo library. Try again.");

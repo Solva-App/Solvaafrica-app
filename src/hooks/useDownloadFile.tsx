@@ -76,23 +76,8 @@ const isAbsoluteHttpUrl = (uri: string) => {
 
 const isValidDownloadUrl = (uri: string) => {
   if (!isAbsoluteHttpUrl(uri)) return false;
-
-  try {
-    const u = new URL(uri);
-    const host = u.hostname.toLowerCase();
-
-    // Firebase Storage strict validation
-    if (host.includes("firebasestorage.googleapis.com")) {
-      const pathMatch = /^\/v0\/b\/[^/]+\/o\/.+/.test(u.pathname);
-      const hasAltMedia = u.searchParams.get("alt") === "media";
-      return pathMatch && hasAltMedia;
-    }
-
-    // Other hosts: accept http(s) absolute URL
-    return true;
-  } catch {
-    return false;
-  }
+  // Accept any valid http/https URL — backend may serve from Firebase, S3, Cloudinary, etc.
+  return true;
 };
 
 const buildNormalizedDownloadUrl = (rawUrl: string) =>
@@ -111,12 +96,11 @@ export const useDownloadFile = (
     try {
       const effectiveFileCode = overrideFileCode ?? fileCode;
       const normalizedDownloadUri = buildNormalizedDownloadUrl(downloadFileUri);
+      console.log("[Download] Raw URL:", downloadFileUri);
+      console.log("[Download] Normalized URL:", normalizedDownloadUri);
 
       if (!isValidDownloadUrl(normalizedDownloadUri)) {
-        console.error("Invalid download URL format", {
-          rawUrl: downloadFileUri,
-          normalizedUrl: normalizedDownloadUri,
-        });
+        console.error("[Download] Invalid URL rejected:", normalizedDownloadUri);
         Alert.alert(
           "Invalid file URL",
           "This file link is invalid. Please contact support or refresh data.",

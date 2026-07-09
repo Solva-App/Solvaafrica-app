@@ -9,6 +9,7 @@ import {
   ScrollView,
   TextInput,
   Platform,
+  SafeAreaView,
 } from "react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { router, useLocalSearchParams } from "expo-router";
@@ -30,7 +31,7 @@ import { hscale, mscale, wscale } from "../helpers/metric";
 import { AUTH_API_CLIENT } from "../api/apiClient";
 import { useDownloadFile } from "../hooks/useDownloadFile";
 import CoursesList from "./coursesList";
-import { Toast } from "toastify-react-native";
+import ToastManager, { Toast } from "toastify-react-native";
 
 // ── Badge presets ─────────────────────────────────────────────────────────────
 const BADGE_PRESETS = [
@@ -161,118 +162,121 @@ export default function CoursesScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.scrollView}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.scrollContent}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <BackIcon name="arrow-back" size={mscale(22)} color={colors.primary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Courses</Text>
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <BackIcon name="arrow-back" size={mscale(22)} color={colors.primary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Courses</Text>
+        </View>
 
-      {/* ── Filter dropdowns ── */}
-      <View style={styles.formContainer}>
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>University</Text>
-          <DropDownPicker
-            data={allUniversities}
-            setSelectedValue={setUniversity}
-            defaultValue={university}
+        {/* ── Filter dropdowns ── */}
+        <View style={styles.formContainer}>
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>University</Text>
+            <DropDownPicker
+              data={allUniversities}
+              setSelectedValue={setUniversity}
+              defaultValue={university}
+            />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Faculty</Text>
+            <DropDownPicker
+              data={facultyList.map((f) => f.name)}
+              setSelectedValue={setFaculty}
+              defaultValue={faculty}
+            />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>Department</Text>
+            <DropDownPicker
+              data={departmentList}
+              setSelectedValue={setDepartment}
+              defaultValue={department}
+            />
+          </View>
+
+          {/* Search button */}
+          <TouchableOpacity style={styles.searchBtn} onPress={handleSearch} activeOpacity={0.85}>
+            <SearchFeather name="search" size={mscale(18)} color="#fff" />
+            <Text style={styles.searchBtnText}>Search</Text>
+          </TouchableOpacity>
+
+          {/* Pagination dot */}
+          <View style={styles.dotRow}>
+            <View style={styles.dotActive} />
+          </View>
+        </View>
+
+        {/* ══════════════════════════════════════════
+            PROJECT RESEARCH WORK SECTION
+        ══════════════════════════════════════════ */}
+
+        {/* Heading + count */}
+        <View style={styles.resultsHeader}>
+          <Text style={styles.resultsTitle}>Project Research work</Text>
+          <Text style={styles.resultsCount}>{filteredFiles.length} Results</Text>
+        </View>
+
+        {/* Search by name */}
+        <View style={styles.projectSearchBar}>
+          <SearchFeather name="search" size={mscale(16)} color="#AAA" />
+          <TextInput
+            style={styles.projectSearchInput}
+            placeholder="Search by name"
+            placeholderTextColor="#AAA"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
         </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Faculty</Text>
-          <DropDownPicker
-            data={facultyList.map((f) => f.name)}
-            setSelectedValue={setFaculty}
-            defaultValue={faculty}
-          />
-        </View>
-
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Department</Text>
-          <DropDownPicker
-            data={departmentList}
-            setSelectedValue={setDepartment}
-            defaultValue={department}
-          />
-        </View>
-
-        {/* Search button */}
-        <TouchableOpacity style={styles.searchBtn} onPress={handleSearch} activeOpacity={0.85}>
-          <SearchFeather name="search" size={mscale(18)} color="#fff" />
-          <Text style={styles.searchBtnText}>Search</Text>
-        </TouchableOpacity>
-
-        {/* Pagination dot */}
-        <View style={styles.dotRow}>
-          <View style={styles.dotActive} />
-        </View>
-      </View>
-
-      {/* ══════════════════════════════════════════
-          PROJECT RESEARCH WORK SECTION
-      ══════════════════════════════════════════ */}
-
-      {/* Heading + count */}
-      <View style={styles.resultsHeader}>
-        <Text style={styles.resultsTitle}>Project Research work</Text>
-        <Text style={styles.resultsCount}>{filteredFiles.length} Results</Text>
-      </View>
-
-      {/* Search by name */}
-      <View style={styles.projectSearchBar}>
-        <SearchFeather name="search" size={mscale(16)} color="#AAA" />
-        <TextInput
-          style={styles.projectSearchInput}
-          placeholder="Search by name"
-          placeholderTextColor="#AAA"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-      </View>
-
-      {/* Project cards */}
-      {loadingProjects ? (
-        <View style={styles.loadingWrap}>
-          <LottieView
-            autoPlay
-            loop
-            style={{ width: wscale(50), height: hscale(50) }}
-            source={require("../../assets/animations/spin.json")}
-          />
-        </View>
-      ) : filteredFiles.length === 0 ? (
-        <Text style={styles.emptyText}>No projects found.</Text>
-      ) : (
-        filteredFiles.map((item, index) => (
-          <ProjectCard
-            key={item.fileKey}
-            fileName={item.fileName}
-            fileURI={item.fileURI}
-            fileKey={item.fileKey}
-            index={index}
-            isDownloading={downloadingFiles.has(item.fileName)}
-            onDownloadStart={() =>
-              setDownloadingFiles((prev) => new Set(prev).add(item.fileName))
-            }
-            onDownloadComplete={() =>
-              setDownloadingFiles((prev) => {
-                const next = new Set(prev);
-                next.delete(item.fileName);
-                return next;
-              })
-            }
-          />
-        ))
-      )}
-    </ScrollView>
+        {/* Project cards */}
+        {loadingProjects ? (
+          <View style={styles.loadingWrap}>
+            <LottieView
+              autoPlay
+              loop
+              style={{ width: wscale(50), height: hscale(50) }}
+              source={require("../../assets/animations/spin.json")}
+            />
+          </View>
+        ) : filteredFiles.length === 0 ? (
+          <Text style={styles.emptyText}>No projects found.</Text>
+        ) : (
+          filteredFiles.map((item, index) => (
+            <ProjectCard
+              key={item.fileKey}
+              fileName={item.fileName}
+              fileURI={item.fileURI}
+              fileKey={item.fileKey}
+              index={index}
+              isDownloading={downloadingFiles.has(item.fileName)}
+              onDownloadStart={() =>
+                setDownloadingFiles((prev) => new Set(prev).add(item.fileName))
+              }
+              onDownloadComplete={() =>
+                setDownloadingFiles((prev) => {
+                  const next = new Set(prev);
+                  next.delete(item.fileName);
+                  return next;
+                })
+              }
+            />
+          ))
+        )}
+      </ScrollView>
+      <ToastManager />
+    </SafeAreaView>
   );
 }
 
@@ -314,7 +318,7 @@ const ProjectCard = ({
   }, []);
 
   const handleDownload = async () => {
-    if (isDownloading || fileExist) return;
+    if (isDownloading) return;
     onDownloadStart();
     try {
       const result = await downloadFile("Projects", fileURI, fileName);
@@ -344,14 +348,25 @@ const ProjectCard = ({
           }
         } else if (Platform.OS === "web") {
           try {
+            const response = await fetch(result.fileUri);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
             const link = document.createElement("a");
-            link.href = result.fileUri;
-            link.setAttribute("download", fileName);
+            link.href = blobUrl;
+            link.setAttribute("download", fileName || "project.pdf");
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            Toast.success(`Downloading: ${fileName}`);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+            Toast.success(`Downloaded: ${fileName}`);
           } catch (e) {
+            const link = document.createElement("a");
+            link.href = result.fileUri;
+            link.setAttribute("download", fileName || "project.pdf");
+            link.target = "_blank";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
             Toast.success(`Downloaded: ${fileName}`);
           }
         } else {
@@ -368,7 +383,7 @@ const ProjectCard = ({
   };
 
   const handleMobileDownload = () => {
-    if (isDownloading || fileExist) return;
+    if (isDownloading) return;
     if (DownloadIconRef.current) DownloadIconRef.current.play();
     setTimeout(() => handleDownload(), 300);
   };
@@ -407,19 +422,7 @@ const ProjectCard = ({
           <Text style={styles.cardMetaText}>{displayDate} • {displaySize}</Text>
         </View>
 
-        {fileExist || downloadSuccess ? (
-          <Pressable
-            style={styles.downloadBtn}
-            onPress={
-              Platform.OS === "web" ? handleDownload : handleMobileDownload
-            }
-          >
-            <CheckCircleIcon name="check-circle" size={mscale(14)} color={colors.primary} />
-            <Text style={styles.downloadBtnText}>
-              {Platform.OS === "web" ? "Download Again" : "Save to Phone"}
-            </Text>
-          </Pressable>
-        ) : isDownloading ? (
+        {isDownloading ? (
           <View style={styles.downloadBtn}>
             <LottieView
               autoPlay loop

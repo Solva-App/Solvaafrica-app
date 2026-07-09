@@ -38,8 +38,7 @@ export default function AddReview() {
 
   const handleSubmit = async () => {
     if (!name || !title || !message) {
-      ToastAndroid.show("Please fill in all fields.", ToastAndroid.LONG);
-      // Toast.error("Please fill in all fields.");
+      Toast.error("Please fill in all fields.");
       return;
     }
 
@@ -57,18 +56,12 @@ export default function AddReview() {
         setName("");
         setTitle("");
         setMessage("");
-        // navigation.goBack();
       } else {
-        ToastAndroid.show("Failed to submit review.", ToastAndroid.LONG);
-        // Toast.error("Failed to submit review.");
+        Toast.error("Failed to submit review.");
       }
     } catch (error) {
       console.error("Review submit error:", error);
-      // Toast.error("Something went wrong while submitting review.");
-      ToastAndroid.show(
-        "Something went wrong while submitting review.",
-        ToastAndroid.LONG,
-      );
+      Toast.error("Something went wrong while submitting review.");
     } finally {
       setLoading(false);
     }

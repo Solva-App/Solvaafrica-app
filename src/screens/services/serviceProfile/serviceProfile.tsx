@@ -325,17 +325,27 @@ export default function ServiceProfile() {
     );
   }
 
-  const formatPhone = (phone: string) => {
-    let cleaned = phone.replace(/[^0-9]/g, "");
-
-    // Nigerian numbers
+  const formatPhone = (raw: string | null | undefined): string => {
+    if (!raw) return "";
+    let cleaned = String(raw).replace(/[\s\-().]/g, "");
+    if (cleaned.startsWith("+")) cleaned = cleaned.slice(1);
     if (cleaned.startsWith("0")) {
       cleaned = "234" + cleaned.slice(1);
     } else if (!cleaned.startsWith("234")) {
       cleaned = "234" + cleaned;
     }
-
     return cleaned;
+  };
+
+  const openWhatsApp = (raw: string | null | undefined) => {
+    const phone = formatPhone(raw);
+    if (!phone) {
+      alert("No WhatsApp number available.");
+      return;
+    }
+    Linking.openURL(`https://wa.me/${phone}`).catch(() =>
+      alert("Could not open WhatsApp. Please make sure WhatsApp is installed.")
+    );
   };
 
   console.log(user);
@@ -413,7 +423,7 @@ export default function ServiceProfile() {
         {user?.whatsappLink && (
           <TouchableOpacity 
             style={[styles.actionBtn, { backgroundColor: "#1CD05D" }]}
-            onPress={() => Linking.openURL(`https://wa.me/${formatPhone(user.whatsappLink)}`)}
+            onPress={() => openWhatsApp(user.whatsappLink)}
             activeOpacity={0.85}
           >
             <FontAwesome6 name="whatsapp" size={18} color="#FFF" />
