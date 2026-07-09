@@ -20,6 +20,9 @@ import PDFIcon from "@expo/vector-icons/FontAwesome6";
 import { FlashList } from "@shopify/flash-list";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+import ToastManager, { Toast } from "toastify-react-native";
+import { Platform } from "react-native";
 
 import { hscale, mscale, wscale } from "../helpers/metric";
 import EmptyStateView from "../components/emptyStateView";
@@ -44,9 +47,13 @@ const normalizeText = (value?: string | null) =>
 
 const extractCoursesFromResponse = (payload: any): any[] => {
   const responseData = payload?.data;
+  console.log("[Courses] API response shape:", JSON.stringify(payload)?.slice(0, 300));
   if (Array.isArray(responseData)) return responseData;
   if (Array.isArray(responseData?.documents)) return responseData.documents;
+  if (Array.isArray(responseData?.courses)) return responseData.courses;
+  if (Array.isArray(responseData?.data)) return responseData.data;
   if (Array.isArray(payload?.documents)) return payload.documents;
+  if (Array.isArray(payload?.courses)) return payload.courses;
   if (Array.isArray(payload)) return payload;
   return [];
 };
@@ -77,13 +84,19 @@ const matchesSelectedValue = (
   );
 };
 
-type CourseDocument = { url?: string; name?: string };
+type CourseDocument = { url?: string; name?: string; fileUrl?: string; link?: string; fileName?: string };
 
 const normalizeCourseCode = (value?: string | null) =>
   String(value ?? "").trim().toLowerCase();
 
 const normalizeFileName = (value?: string | null) =>
   String(value ?? "").trim().toLowerCase();
+
+const getCourseDocUrl = (doc: CourseDocument) =>
+  doc.url ?? doc.fileUrl ?? doc.link ?? "";
+
+const getCourseDocName = (doc: CourseDocument) =>
+  doc.name ?? doc.fileName ?? "file.pdf";
 
 const getCourseDownloadKey = ({
   courseCode,
@@ -113,7 +126,7 @@ const getStoredCourseDownloadKey = (item: DownloadedFileRef) =>
 
 const getValidCourseDocuments = (courseDocuments: CourseDocument[] = []) =>
   courseDocuments.filter(
-    (doc): doc is Required<CourseDocument> => !!doc?.url && !!doc?.name,
+    (doc) => !!(getCourseDocUrl(doc)) && !!(getCourseDocName(doc)),
   );
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -173,7 +186,7 @@ export default function CoursesList() {
       return;
     }
     const courseDocumentKeys = validDocuments.map((doc) =>
-      getCourseDownloadKey({ courseCode, fileName: doc.name, fileUrl: doc.url }),
+      getCourseDownloadKey({ courseCode, fileName: getCourseDocName(doc), fileUrl: getCourseDocUrl(doc) }),
     );
     try {
       const raw = await AsyncStorage.getItem("DownloadRefs");
@@ -186,34 +199,94 @@ export default function CoursesList() {
       const existingCourseDownloadKeys = new Set(
         matchingCourseDownloads.map(getStoredCourseDownloadKey),
       );
-      const nextDocumentToDownload = validDocuments.find(
+      let nextDocumentToDownload = validDocuments.find(
         (doc) =>
           !existingCourseDownloadKeys.has(
             getCourseDownloadKey({
               courseCode,
-              fileName: doc.name,
-              fileUrl: doc.url,
+              fileName: getCourseDocName(doc),
+              fileUrl: getCourseDocUrl(doc),
             }),
           ),
       );
+
+      // Continuous download: If all documents are already downloaded, download the first one again
+      if (!nextDocumentToDownload && validDocuments.length > 0) {
+        nextDocumentToDownload = validDocuments[0];
+      }
       if (nextDocumentToDownload) {
         const nextDocumentKey = getCourseDownloadKey({
           courseCode,
-          fileName: nextDocumentToDownload.name,
-          fileUrl: nextDocumentToDownload.url,
+          fileName: getCourseDocName(nextDocumentToDownload),
+          fileUrl: getCourseDocUrl(nextDocumentToDownload),
         });
         setDownloadingCourseKeys((prev) => new Set(prev).add(nextDocumentKey));
         try {
+          const docUrl = getCourseDocUrl(nextDocumentToDownload);
+          const docName = getCourseDocName(nextDocumentToDownload);
+          console.log("[Download] Attempting to download:", docUrl, docName);
           const result = await downloadCourseFile(
             "Courses",
-            nextDocumentToDownload.url,
-            nextDocumentToDownload.name,
+            docUrl,
+            docName,
             courseCode,
           );
-          if (result?.success) {
+          if (result?.success && result.fileUri) {
             setDownloadedCourseKeys((prev) =>
               new Set(prev).add(nextDocumentKey),
             );
+
+            // Save to device
+            if (Platform.OS === "android") {
+              try {
+                const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+                if (permissions.granted) {
+                  const base64 = await FileSystem.readAsStringAsync(result.fileUri, { encoding: FileSystem.EncodingType.Base64 });
+                  const uri = await FileSystem.StorageAccessFramework.createFileAsync(permissions.directoryUri, docName, 'application/pdf');
+                  await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
+                  Toast.success(`Saved to device: ${docName}`);
+                } else {
+                  Toast.success(`Downloaded: ${docName}`);
+                }
+              } catch (err) {
+                console.log("SAF error:", err);
+                await Sharing.shareAsync(result.fileUri, { dialogTitle: "Save Course Material", mimeType: "application/octet-stream" });
+              }
+            } else if (Platform.OS === "ios") {
+              try {
+                await Sharing.shareAsync(result.fileUri, { UTI: "public.item" });
+              } catch {
+                Toast.success(`Downloaded: ${docName}`);
+              }
+            } else if (Platform.OS === "web") {
+              try {
+                const response = await fetch(result.fileUri);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = blobUrl;
+                link.setAttribute("download", docName || "material.pdf");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+                Toast.success(`Downloaded: ${docName}`);
+              } catch (e) {
+                // Fallback for CORS
+                const link = document.createElement("a");
+                link.href = result.fileUri;
+                link.setAttribute("download", docName || "material.pdf");
+                link.target = "_blank";
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                Toast.success(`Downloaded: ${docName}`);
+              }
+            } else {
+              Toast.success(`Downloaded: ${docName}`);
+            }
+          } else {
+             Toast.error(`Failed to download: ${docName}`);
           }
         } finally {
           setDownloadingCourseKeys((prev) => {
@@ -224,53 +297,9 @@ export default function CoursesList() {
         }
         return;
       }
-      Alert.alert(
-        "Delete downloaded files?",
-        `Remove ${matchingCourseDownloads.length} downloaded file(s) for ${courseCode}?`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: async () => {
-              for (const item of matchingCourseDownloads) {
-                const isRemotePath =
-                  item.platform === "web" ||
-                  item.filePath.startsWith("http://") ||
-                  item.filePath.startsWith("https://");
-                if (isRemotePath) continue;
-                try {
-                  await FileSystem.deleteAsync(item.filePath, {
-                    idempotent: true,
-                  });
-                } catch (deleteError) {
-                  console.log("error deleting local file", deleteError);
-                }
-              }
-              const filteredDownloads = downloads.filter(
-                (item) =>
-                  !(
-                    item.parentDirectory === "Courses" &&
-                    courseDocumentKeys.includes(
-                      getStoredCourseDownloadKey(item),
-                    )
-                  ),
-              );
-              await AsyncStorage.setItem(
-                "DownloadRefs",
-                JSON.stringify(filteredDownloads),
-              );
-              setDownloadedCourseKeys((prev) => {
-                const next = new Set(prev);
-                courseDocumentKeys.forEach((k) => next.delete(k));
-                return next;
-              });
-            },
-          },
-        ],
-      );
     } catch (error) {
-      console.log("error deleting downloaded course files", error);
+      console.log("error processing course downloads", error);
+      Toast.error("Download failed. Please try again.");
     }
   };
 
@@ -330,6 +359,7 @@ export default function CoursesList() {
 
   return (
     <View style={styles.screen}>
+      <ToastManager />
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -516,13 +546,7 @@ const CoursesListItem = ({
             }
           >
             <DownloadIcon
-              name={
-                isDownloading
-                  ? "loader"
-                  : isDownloaded
-                    ? "check-circle"
-                    : "download-cloud"
-              }
+              name={isDownloading ? "loader" : "download-cloud"}
               size={mscale(20)}
               color={colors.primary}
             />

@@ -44,7 +44,7 @@ export const normalizeRemoteFileUrl = (rawUrl?: string | null) => {
   const input = String(rawUrl ?? "").trim();
   if (!input) return "";
 
-  const maybeEncodedInput = input.replace(/\s+\?/g, "?");
+  const maybeEncodedInput = input;
 
   try {
     const parsedInput = isAbsoluteHttpUrl(maybeEncodedInput)

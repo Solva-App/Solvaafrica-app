@@ -15,6 +15,7 @@ import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Feather } from "@expo/vector-icons";
+import ToastManager, { Toast } from "toastify-react-native";
 
 import { AUTH_API_CLIENT } from "../api/apiClient";
 import { normalizeTaskRecord } from "../utils/taskNormalization";
@@ -150,12 +151,13 @@ export default function TaskDetailsScreen() {
   const mutation = useMutation({
     mutationFn: submitTask,
     onSuccess: () => {
-      Alert.alert("Success", "Task submitted successfully");
+      Toast.success("Task submitted successfully");
       setLink("");
       setCertified(false);
     },
-    onError: () => {
-      Alert.alert("Error", "Submission failed");
+    onError: (err: any) => {
+      console.log("Task submit error:", err);
+      Toast.error(err?.response?.data?.message || "Submission failed. Please try again.");
     },
   });
 
@@ -207,6 +209,7 @@ export default function TaskDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
+      <ToastManager />
       <View style={styles.header}>
         <Pressable style={styles.iconButton} onPress={() => router.back()}>
           <Feather name="arrow-left" size={24} color="#111111" />

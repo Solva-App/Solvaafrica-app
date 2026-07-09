@@ -116,16 +116,18 @@ const [confirmPassword, setConfirmPassword] = useState("");
 
     if (profileUpdateRes.status === 200) {
       const cachedUser = await AsyncStorage.getItem("User");
-      const user = cachedUser && JSON.parse(cachedUser);
-      user.profile = updatedProfile;
+      const user = cachedUser ? JSON.parse(cachedUser) : useAuthStore.getState().user;
+      const mergedProfile = { ...user?.profile, ...updatedProfile };
+      
+      const updatedUser = { ...user, profile: mergedProfile };
 
       // save to storage
       useAuthStore.setState((state) => ({
         ...state,
-        user: { profile: updatedProfile },
+        user: updatedUser,
       }));
-      await AsyncStorage.setItem("User", JSON.stringify(user));
-      console.log("user updated", user);
+      await AsyncStorage.setItem("User", JSON.stringify(updatedUser));
+      console.log("user updated", updatedUser);
       Toast.success("Profile Updated successfully!");
     }
   } catch (error) {

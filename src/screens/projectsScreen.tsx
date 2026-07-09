@@ -15,6 +15,7 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  SafeAreaView,
 } from "react-native";
 import { useEffect, useRef, useState } from "react";
 import LottieView from "lottie-react-native";
@@ -24,7 +25,7 @@ import { hscale, mscale, wscale } from "../helpers/metric";
 import { AUTH_API_CLIENT } from "../api/apiClient";
 import { colors } from "../constants/theme";
 import EmptyStateView from "../components/emptyStateView";
-import { Toast } from "toastify-react-native";
+import ToastManager, { Toast } from "toastify-react-native";
 
 // ── Badge colours ─────────────────────────────────────────────────────────────
 const BADGE_PRESETS = [
@@ -120,7 +121,7 @@ export default function ProjectsScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen}>
       {/* ── Section heading + count ── */}
       <View style={styles.resultsHeader}>
         <Text style={styles.resultsTitle}>Project Research work</Text>
@@ -174,7 +175,8 @@ export default function ProjectsScreen() {
           <EmptyStateView />
         )}
       </ScrollView>
-    </View>
+      <ToastManager />
+    </SafeAreaView>
   );
 }
 
@@ -229,20 +231,13 @@ const ProjectCard = ({
           setDownloadSuccess(false);
         }, 3000);
 
-        // Save directly to device storage
-        if (Platform.OS === "android") {
+        // Save directly to device storage using expo-sharing for cross-platform reliability
+        if (Platform.OS === "android" || Platform.OS === "ios") {
           try {
-            const localPath = result.fileUri.replace("file://", "");
-            const destPath = `${ReactNativeBlobUtil.fs.dirs.DownloadDir}/${fileName}`;
-            await ReactNativeBlobUtil.fs.cp(localPath, destPath);
-            Toast.success(`Saved to Downloads: ${fileName}`);
-          } catch (saveErr) {
-            console.log("Error saving to Downloads:", saveErr);
-            Toast.success(`Downloaded: ${fileName}`);
-          }
-        } else if (Platform.OS === "ios") {
-          try {
-            await Sharing.shareAsync(result.fileUri);
+            await Sharing.shareAsync(result.fileUri, {
+              dialogTitle: "Save or Share Project",
+              mimeType: "application/pdf"
+            });
           } catch {
             Toast.success(`Downloaded: ${fileName}`);
           }

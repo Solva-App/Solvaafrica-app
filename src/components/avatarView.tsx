@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View, Image } from "react-native";
 import { useEffect, useState } from "react";
 
 import { hscale, mscale, wscale } from "../helpers/metric";
@@ -6,9 +6,10 @@ import { useAuthStore } from "../stores/authStore";
 import { colors } from "../constants/theme";
 import { Platform } from "expo-modules-core";
 
-export default function AvatarView() {
+export default function AvatarView({ size = 40 }: { size?: number }) {
   const user = useAuthStore((state) => state.user);
 
+  const profilePic = user?.profile?.profilePic ?? null;
   const fullName = user?.profile?.fullName ?? "";
 
   const nameParts = fullName.trim().split(" ");
@@ -20,12 +21,28 @@ export default function AvatarView() {
   useEffect(() => {
     const firstInitial = firstName ? firstName[0] : "";
     const lastInitial = lastName ? lastName[0] : "";
-
     setUserNamePrefix(firstInitial + lastInitial);
   }, [fullName]);
 
+  if (profilePic) {
+    return (
+      <Image
+        source={{ uri: profilePic }}
+        style={[
+          styles.avatarView,
+          { width: size, height: size, borderRadius: size / 2 },
+        ]}
+      />
+    );
+  }
+
   return (
-    <View style={styles.avatarView}>
+    <View
+      style={[
+        styles.avatarView,
+        { width: size, height: size, borderRadius: size / 2 },
+      ]}
+    >
       <Text style={styles.avatarViewText}>{userNamePrefix.toUpperCase()}</Text>
     </View>
   );
@@ -38,10 +55,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: mscale(30),
     justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
     ...Platform.select({
       web: {
         maxWidth: "100%",
-        maxHeight: "auto",
       },
     }),
   },

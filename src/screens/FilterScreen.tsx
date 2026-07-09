@@ -10,6 +10,8 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Share,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -20,42 +22,65 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { hscale, mscale, wscale } from "../helpers/metric";
 import { colors } from "../constants/theme";
-import { fetchCommunityPosts, likePost, deletePost, fetchTrendingTopics } from "../api/queries";
+import { fetchCommunityPosts, likePost, unlikePost, deletePost, fetchTrendingTopics, viewPost, voteOnPoll } from "../api/queries";
 import { useAuthStore } from "../stores/authStore";
 import AvatarView from "../components/avatarView";
+import ToastManager, { Toast } from "toastify-react-native";
 
-const FALLBACK_TRENDING = [
-  { id: 1, tag: "#SolvaPayouts", desc: "Students flexing task cash-outs", posts: "Trending" },
-  { id: 2, tag: "#ExamPrep2026", desc: "Study materials and tips", posts: "Trending" },
-  { id: 3, tag: "#HustleTips", desc: "Creative ideas to earn money", posts: "Trending" },
-];
 
 /** Normalise a raw post from the API into a consistent shape */
-const normalisePost = (raw: any) => ({
-  id: String(raw._id ?? raw.id ?? ""),
-  author: raw.author?.fullName ?? raw.author?.name ?? raw.authorName ?? "Anonymous",
-  campus: raw.campus ?? raw.author?.campus ?? "",
-  avatar: raw.author?.profilePic ?? raw.authorAvatar ?? "https://i.pravatar.cc/150?img=1",
-  badge: raw.badge ?? "none",
-  date: raw.createdAt
-    ? new Date(raw.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })
-    : "Just now",
-  content: raw.content ?? raw.text ?? raw.message ?? "",
-  image: raw.image ?? raw.imageUrl ?? undefined,
-  views: raw.views ? `${raw.views}` : null,
-  likes: Array.isArray(raw.likes) ? raw.likes.length : (raw.likesCount ?? 0),
-  isLikedByMe: Array.isArray(raw.likes)
-    ? raw.likes.includes(raw._currentUserId)
-    : (raw.isLiked ?? false),
-  commentsCount: raw.commentsCount ?? (Array.isArray(raw.comments) ? raw.comments.length : 0),
-  authorId: String(raw.author?._id ?? raw.author?.id ?? raw.authorId ?? ""),
-});
+const normalisePost = (raw: any, authUser?: any) => {
+  let parsedPoll = null;
+  if (raw.poll) {
+    try {
+      parsedPoll = typeof raw.poll === "string" ? JSON.parse(raw.poll) : raw.poll;
+    } catch (e) {
+      parsedPoll = null;
+    }
+  }
+
+  const rawAuthorId = String(raw.userId ?? raw.author?._id ?? raw.author?.id ?? raw.user?._id ?? raw.user?.id ?? raw.authorId ?? "").trim();
+  const myId = String(authUser?.profile?.userID ?? authUser?.profile?.id ?? authUser?.profile?._id ?? authUser?.user?.userID ?? authUser?.user?.id ?? authUser?.user?._id ?? "").trim();
+  const isMine = myId !== "" && rawAuthorId !== "" && myId === rawAuthorId;
+
+  const liveAvatar = isMine ? (authUser?.profile?.profilePic ?? authUser?.profile?.avatar) : null;
+
+  return {
+    id: String(raw._id ?? raw.id ?? ""),
+    author: raw.username ?? raw.author?.fullName ?? raw.author?.name ?? raw.author?.username ?? raw.user?.fullName ?? raw.user?.name ?? raw.authorName ?? "Anonymous",
+    campus: raw.campus ?? raw.author?.campus ?? raw.user?.campus ?? "",
+    avatar:
+      liveAvatar ??
+      raw.profilePic ??
+      raw.author?.profilePic ??
+      raw.author?.avatar ??
+      raw.user?.profilePic ??
+      raw.user?.avatar ??
+      raw.authorAvatar ??
+      "https://i.pravatar.cc/150?img=1",
+    badge: raw.badge ?? "none",
+    date: raw.createdAt
+      ? new Date(raw.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })
+      : "Just now",
+    content: raw.content ?? raw.text ?? raw.message ?? "",
+    image: (raw.mediaUrl && raw.mediaUrl.length > 0) ? raw.mediaUrl : 
+           (raw.image && raw.image.length > 0) ? raw.image : 
+           (raw.imageUrl && raw.imageUrl.length > 0) ? raw.imageUrl : undefined,
+    views: typeof raw.views === "number" ? raw.views : (raw.viewsCount ?? 0),
+    likes: typeof raw.likes === "number" ? raw.likes : (Array.isArray(raw.likes) ? raw.likes.length : (raw.likesCount ?? 0)),
+    isLikedByMe: raw.liked ?? raw.isLiked ?? false,
+    commentsCount: raw.commentsCount ?? (Array.isArray(raw.comments) ? raw.comments.length : 0),
+    poll: parsedPoll,
+    authorId: rawAuthorId,
+  };
+};
 
 export default function FilterScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const authUser = useAuthStore((state) => state.user);
   const [searchQuery, setSearchQuery] = useState("");
+  const [activeMenuPostId, setActiveMenuPostId] = useState<string | null>(null);
 
   // ── Fetch posts ──
   const {
@@ -70,7 +95,7 @@ export default function FilterScreen() {
     refetchOnWindowFocus: true,
   });
 
-  const posts = rawPosts.map(normalisePost);
+  const posts = rawPosts.map((raw: any) => normalisePost(raw, authUser));
 
   // ── Fetch trending ──
   const { data: trendingData = [] } = useQuery({
@@ -86,31 +111,32 @@ export default function FilterScreen() {
         desc: t.description || "Trending on campus",
         posts: t.count ? `${t.count}` : "Trending",
       }))
-    : FALLBACK_TRENDING;
+    : [];
 
-  // ── Like mutation ──
+  // ── Like / Unlike mutation ──
   const likeMutation = useMutation({
-    mutationFn: (postId: string) => likePost(postId),
-    onMutate: async (postId) => {
-      // Optimistic update
+    mutationFn: ({ postId, isLiked }: { postId: string; isLiked: boolean }) =>
+      isLiked ? unlikePost(postId) : likePost(postId),
+    onMutate: async ({ postId, isLiked }) => {
       await queryClient.cancelQueries({ queryKey: ["community-posts"] });
       const previous = queryClient.getQueryData(["community-posts"]);
       queryClient.setQueryData(["community-posts"], (old: any[]) =>
         (old ?? []).map((p: any) => {
           const id = String(p._id ?? p.id ?? "");
           if (id !== postId) return p;
-          const liked = p.isLiked ?? false;
-          const likes = Array.isArray(p.likes) ? p.likes.length : (p.likesCount ?? 0);
-          return { ...p, isLiked: !liked, likesCount: liked ? likes - 1 : likes + 1 };
+          const likes = typeof p.likes === "number" ? p.likes : (p.likesCount ?? 0);
+          return {
+            ...p,
+            liked: !isLiked,
+            likes: isLiked ? Math.max(0, likes - 1) : likes + 1,
+          };
         })
       );
       return { previous };
     },
-    onError: (_err, _id, ctx) => {
+    onError: (_err, _vars, ctx) => {
       queryClient.setQueryData(["community-posts"], ctx?.previous);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      Toast.error("Couldn't update like. Try again.");
     },
   });
 
@@ -119,29 +145,65 @@ export default function FilterScreen() {
     mutationFn: (postId: string) => deletePost(postId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      Toast.success("Post deleted.");
     },
+    onError: () => {
+      Toast.error("Failed to delete post. You can only delete your own posts.");
+    }
+  });
+
+  // ── Vote Poll mutation ──
+  const votePollMutation = useMutation({
+    mutationFn: ({ postId, optionIndex }: { postId: string; optionIndex: number }) => voteOnPoll({ postId, optionIndex }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      Toast.success("Vote recorded!");
+    },
+    onError: () => {
+      Toast.error("Failed to vote.");
+    }
   });
 
   const handleMoreOptions = useCallback(
     (post: ReturnType<typeof normalisePost>) => {
-      const myId = String(authUser?.profile?.userID ?? authUser?.profile?._id ?? "");
-      const isOwn = myId && post.authorId === myId;
-      const options: any[] = [{ text: "Cancel", style: "cancel" }];
-      if (isOwn) {
-        options.unshift({
-          text: "Delete Post",
-          style: "destructive",
-          onPress: () => deleteMutation.mutate(post.id),
-        });
-      }
-      if (Platform.OS === "web") {
-        window.alert("Post options coming soon!");
-      } else {
-        Alert.alert("Post Options", "", options);
-      }
+      setActiveMenuPostId((prev) => (prev === post.id ? null : post.id));
     },
-    [authUser, deleteMutation]
+    []
   );
+
+  const confirmDeletePost = (postId: string) => {
+    setActiveMenuPostId(null);
+    if (Platform.OS === "web") {
+      const confirmDelete = window.confirm("Are you sure you want to delete this post?");
+      if (confirmDelete) {
+        deleteMutation.mutate(postId);
+      }
+      return;
+    }
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => deleteMutation.mutate(postId),
+      },
+    ]);
+  };
+
+  const confirmReportPost = () => {
+    setActiveMenuPostId(null);
+    router.push("/(tabs)/settings?section=support" as any);
+  };
+
+  const handleShare = async (post: ReturnType<typeof normalisePost>) => {
+    try {
+      await Share.share({
+        message: `Check out this post on Solva by ${post.author}:\n\n"${post.content}"\n\nJoin the conversation on Solva!`,
+      });
+    } catch (error: any) {
+      Toast.error("Failed to share post.");
+    }
+  };
 
   const filteredPosts = posts.filter(
     (post) =>
@@ -199,15 +261,21 @@ export default function FilterScreen() {
           </View>
           <Text style={styles.trendingSubtitle}>RANKED 1 TO 5 - REAL-TIME STUDENT BUZZ</Text>
           <View style={styles.trendingList}>
-            {trendingTopics.slice(0, 5).map((item: any) => (
-              <View key={item.id} style={styles.trendingItem}>
-                <Text style={styles.trendingRank}>{item.id}.</Text>
-                <View style={styles.trendingTextContainer}>
-                  <Text style={styles.trendingTag}>{item.tag}</Text>
-                  <Text style={styles.trendingDesc}>{`${item.desc} • ${item.posts} posts`}</Text>
+            {trendingTopics.length === 0 ? (
+              <Text style={{ textAlign: "center", color: "#666", marginVertical: hscale(10) }}>
+                No trending topics yet. Start posting with hashtags!
+              </Text>
+            ) : (
+              trendingTopics.slice(0, 5).map((item: any) => (
+                <View key={item.id} style={styles.trendingItem}>
+                  <Text style={styles.trendingRank}>{item.id}.</Text>
+                  <View style={styles.trendingTextContainer}>
+                    <Text style={styles.trendingTag}>{item.tag}</Text>
+                    <Text style={styles.trendingDesc}>{`${item.desc} • ${item.posts} posts`}</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              ))
+            )}
           </View>
         </View>
 
@@ -275,13 +343,40 @@ export default function FilterScreen() {
                     </View>
                     <Text style={styles.postDate}>{post.date}</Text>
                   </View>
-                  <TouchableOpacity
-                    style={styles.moreBtn}
-                    hitSlop={8}
-                    onPress={() => handleMoreOptions(post)}
-                  >
-                    <FeatherIcon name="more-horizontal" size={mscale(18)} color="#999" />
-                  </TouchableOpacity>
+                  <View>
+                    <TouchableOpacity
+                      style={styles.moreBtn}
+                      hitSlop={8}
+                      onPress={() => handleMoreOptions(post)}
+                    >
+                      <FeatherIcon name="more-horizontal" size={mscale(18)} color="#999" />
+                    </TouchableOpacity>
+
+                    <Modal
+                      visible={activeMenuPostId === post.id}
+                      transparent={true}
+                      animationType="fade"
+                      onRequestClose={() => setActiveMenuPostId(null)}
+                    >
+                      <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setActiveMenuPostId(null)}
+                      >
+                        <View style={styles.modalPopout}>
+                          <TouchableOpacity style={styles.popoutMenuItem} onPress={() => confirmDeletePost(post.id)}>
+                            <FeatherIcon name="trash-2" size={mscale(16)} color="#FF3B30" />
+                            <Text style={[styles.popoutMenuText, { color: "#FF3B30" }]}>Delete Post</Text>
+                          </TouchableOpacity>
+                          <View style={styles.popoutDivider} />
+                          <TouchableOpacity style={styles.popoutMenuItem} onPress={confirmReportPost}>
+                            <FeatherIcon name="flag" size={mscale(16)} color="#333" />
+                            <Text style={styles.popoutMenuText}>Report Post</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </TouchableOpacity>
+                    </Modal>
+                  </View>
                 </View>
 
                 {/* Post Content */}
@@ -289,9 +384,54 @@ export default function FilterScreen() {
                   <Text style={styles.postContent}>{post.content}</Text>
                 ) : null}
 
-                {/* Attached Image */}
+                {/* Attached Image(s) */}
                 {post.image ? (
-                  <Image source={{ uri: post.image }} style={styles.postAttachedImage} />
+                  Array.isArray(post.image) ? (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+                      {post.image.map((uri: string, idx: number) => (
+                        <TouchableOpacity
+                          key={idx}
+                          activeOpacity={0.9}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/image-viewer",
+                              params: { imageSource: uri },
+                            })
+                          }
+                          style={{ marginRight: 12 }}
+                        >
+                          <Image source={{ uri }} style={[styles.postAttachedImage, { width: 280, marginTop: 0 }]} resizeMode="cover" />
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  ) : (
+                    <TouchableOpacity
+                      activeOpacity={0.9}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/image-viewer",
+                          params: { imageSource: post.image },
+                        })
+                      }
+                    >
+                      <Image source={{ uri: post.image }} style={styles.postAttachedImage} resizeMode="contain" />
+                    </TouchableOpacity>
+                  )
+                ) : null}
+
+                {/* Poll */}
+                {post.poll && Array.isArray(post.poll) && post.poll.length > 0 ? (
+                  <View style={styles.pollContainer}>
+                    {post.poll.map((opt: string, idx: number) => (
+                      <TouchableOpacity 
+                        key={idx} 
+                        style={styles.pollOption}
+                        onPress={() => post.id && votePollMutation.mutate({ postId: post.id, optionIndex: idx })}
+                      >
+                        <Text style={styles.pollOptionText}>{opt}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 ) : null}
 
                 {/* Views */}
@@ -318,11 +458,19 @@ export default function FilterScreen() {
                     )}
                   </TouchableOpacity>
 
+                  {/* Views */}
+                  <View style={styles.actionBtn}>
+                    <FeatherIcon name="eye" size={mscale(18)} color="#888" />
+                    {post.views > 0 && (
+                      <Text style={styles.actionCount}>{post.views}</Text>
+                    )}
+                  </View>
+
                   {/* Like */}
                   <TouchableOpacity
                     style={styles.actionBtn}
                     hitSlop={8}
-                    onPress={() => post.id && likeMutation.mutate(post.id)}
+                    onPress={() => post.id && likeMutation.mutate({ postId: post.id, isLiked: post.isLikedByMe })}
                   >
                     <FeatherIcon
                       name="heart"
@@ -337,7 +485,7 @@ export default function FilterScreen() {
                   </TouchableOpacity>
 
                   {/* Share */}
-                  <TouchableOpacity style={styles.actionBtn} hitSlop={8}>
+                  <TouchableOpacity style={styles.actionBtn} hitSlop={8} onPress={() => handleShare(post)}>
                     <FeatherIcon name="share" size={mscale(18)} color="#888" />
                   </TouchableOpacity>
                 </View>
@@ -562,10 +710,28 @@ const styles = StyleSheet.create({
   },
   postAttachedImage: {
     width: "100%",
-    height: hscale(200),
+    height: hscale(220),
     borderRadius: mscale(12),
     marginBottom: hscale(16),
     backgroundColor: "#F0EEF5",
+  },
+  pollContainer: {
+    marginTop: hscale(8),
+    marginBottom: hscale(16),
+  },
+  pollOption: {
+    borderWidth: 1,
+    borderColor: "#EAE6F0",
+    borderRadius: mscale(8),
+    paddingVertical: hscale(10),
+    paddingHorizontal: wscale(12),
+    marginBottom: hscale(8),
+    backgroundColor: "#FAFAFA",
+  },
+  pollOptionText: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(14),
+    color: "#301934",
   },
   viewsContainer: {
     flexDirection: "row",
@@ -618,5 +784,40 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
+  },
+
+  // ── Popout Menu Modal ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalPopout: {
+    backgroundColor: "#fff",
+    borderRadius: mscale(16),
+    paddingVertical: hscale(8),
+    width: wscale(200),
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
+  },
+  popoutMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: hscale(12),
+    paddingHorizontal: wscale(16),
+    gap: wscale(8),
+  },
+  popoutDivider: {
+    height: 1,
+    backgroundColor: "#F0EEF5",
+  },
+  popoutMenuText: {
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(14),
+    color: "#333",
   },
 });

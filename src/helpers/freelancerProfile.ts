@@ -91,6 +91,23 @@ export const normalizeUserProfile = (
   );
   const role =
     userData.role ?? nestedProfile.role ?? fallbackProfile.role ?? "user";
+  // Profile picture — try all possible field names the backend might use
+  const profilePic =
+    userData.profilePic ??
+    userData.profilePicture ??
+    userData.avatar ??
+    userData.photo ??
+    nestedProfile.profilePic ??
+    nestedProfile.profilePicture ??
+    nestedProfile.avatar ??
+    fallbackProfile.profilePic ??
+    null;
+  // Username
+  const username =
+    userData.username ??
+    nestedProfile.username ??
+    fallbackProfile.username ??
+    null;
   const freelancer =
     userData.freelancer ??
     nestedProfile.freelancer ??
@@ -132,6 +149,8 @@ export const normalizeUserProfile = (
     referralCode,
     userID,
     role,
+    profilePic,
+    username,
     freelancer,
     freelancerId,
     freelancerProfile,

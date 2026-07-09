@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { colors, screenHorizontalPadding } from "../constants/theme";
 import TextLinkButton from "../components/textLinkButton";
 import PrimaryButton from "../components/primaryButton";
+import Logo from "../components/logo";
 import { hscale, mscale } from "../helpers/metric";
 import { globalStyles } from "../styles/global";
 
@@ -10,10 +11,17 @@ export default function OnboardScreen() {
   return (
     <ScrollView
       style={styles.scrollView}
-      contentContainerStyle={{ justifyContent: "flex-start" }}
+      contentContainerStyle={{ flexGrow: 1, justifyContent: "space-between" }}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.container}>
+        
+        {/* Top Logo */}
+        <View style={styles.logoContainer}>
+          <Logo />
+        </View>
+
+        {/* 2x2 Image Group */}
         <View style={styles.onboardImageView}>
           <Image
             source={require("../../assets/images/onboardGroup.png")}
@@ -21,15 +29,16 @@ export default function OnboardScreen() {
             resizeMode="contain"
           />
         </View>
-        {/* modal */}
+
+        {/* Text and Actions */}
         <View style={styles.onboardModal}>
           <View style={styles.onboardWelcome}>
             <Text style={[globalStyles.headlineText, styles.welcomeTitle]}>
               Welcome to Solva
             </Text>
-            <View style={{ height: 20 }} />
+            <View style={{ height: hscale(12) }} />
             <Text style={[globalStyles.bodyText, styles.welcomeSubtitle]}>
-              It's good to have you here always a good time to learn and earn
+              It's good to have you back. Always a good time to learn and earn
             </Text>
           </View>
 
@@ -38,8 +47,9 @@ export default function OnboardScreen() {
             text="Get Started"
             onPress={() => router.push('/(auth)/create-account')}
           />
+          
           <View style={styles.loginContainer}>
-            <Text>Already have an account? </Text>
+            <Text style={styles.loginPromptText}>Already have an account? </Text>
             <TextLinkButton
               text="Log in"
               customStyle={styles.loginLinkText}
@@ -62,8 +72,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#ffffff",
     paddingHorizontal: screenHorizontalPadding,
-    paddingVertical: hscale(20),
+    paddingTop: hscale(60),
+    paddingBottom: hscale(40),
     justifyContent: "space-between",
+  },
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: hscale(30),
   },
   onboardImage: {
     width: "100%",
@@ -75,32 +90,44 @@ const styles = StyleSheet.create({
     maxHeight: 380,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: hscale(10),
+    marginBottom: hscale(30),
   },
   onboardWelcome: {
-    marginBottom: hscale(20),
+    marginBottom: hscale(30),
     alignItems: "center",
   },
   onboardModal: {
-    padding: mscale(20),
+    paddingHorizontal: mscale(10),
     justifyContent: "center",
   },
   welcomeTitle: {
     textAlign: "center",
+    fontFamily: "Inter-Bold",
+    fontSize: mscale(24),
+    color: "#0F172A",
   },
   welcomeSubtitle: {
     textAlign: "center",
-    paddingHorizontal: mscale(20),
-    lineHeight: mscale(24),
+    paddingHorizontal: mscale(10),
+    lineHeight: mscale(22),
+    fontSize: mscale(15),
+    color: "#64748B",
+    fontFamily: "Inter-Regular",
   },
   loginContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: hscale(20),
+  },
+  loginPromptText: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(14),
+    color: "#1A171C",
   },
   loginLinkText: {
-    color: "#0882DE",
-    fontFamily: "Inter-Regular",
-    fontSize: mscale(16),
+    color: "#C41A66", // Pinkish/magenta from the design
+    fontFamily: "Inter-Medium",
+    fontSize: mscale(14),
   },
 });

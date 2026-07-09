@@ -43,7 +43,7 @@ export default function CreatePostScreen() {
     authUser?.profile?.campus ?? CAMPUSES[0]
   );
   const [isDropdownVisible, setDropdownVisible] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<string[]>([]);
 
   // Poll State
   const [showPoll, setShowPoll] = useState(false);
@@ -52,11 +52,51 @@ export default function CreatePostScreen() {
   // ── Mutation ──
   const { mutate: submitPost, isPending } = useMutation({
     mutationFn: (formData: FormData) => createCommunityPost(formData),
-    onSuccess: () => {
-      // Invalidate the feed so it reloads with the new post
-      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+    onSuccess: (data) => {
+      // If backend returns success: false in a 200 response
+      if (data && data.success === false) {
+        Toast.error(data.message || "Failed to publish post.");
+        return;
+      }
+
+      // Optimistically update the feed with the new post if returned by backend, or a local fake
+      queryClient.setQueryData(["community-posts"], (old: any) => {
+        const newPost = data?.data?.post ?? data?.post ?? data?.data ?? data;
+        
+        const optimisticPost = (newPost && (newPost._id || newPost.id)) ? newPost : {
+          _id: `temp-${Date.now()}`,
+          content: postText.trim(),
+          campus: selectedCampus,
+          createdAt: new Date().toISOString(),
+          author: {
+            fullName: authUser?.profile?.fullName ?? authUser?.profile?.name ?? "You",
+            profilePic: authUser?.profile?.profilePic ?? authUser?.profile?.avatar,
+            campus: selectedCampus
+          },
+          likesCount: 0,
+          likes: [],
+          commentsCount: 0,
+          comments: [],
+          views: 0,
+          poll: showPoll && pollOptions.filter(o => o.trim()).length > 1 
+            ? pollOptions.filter(o => o.trim()).map(o => ({ option: o, votes: 0 })) 
+            : null
+        };
+
+        if (!old || !Array.isArray(old)) {
+           return [optimisticPost];
+        }
+        return [optimisticPost, ...old];
+      });
+
       Toast.success("Post published! 🎉");
-      setTimeout(() => router.back(), 800);
+      setTimeout(() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace("/");
+        }
+      }, 800);
     },
     onError: (err: any) => {
       const msg =
@@ -72,6 +112,22 @@ export default function CreatePostScreen() {
     setDropdownVisible(false);
   };
 
+  const renderFormattedText = (text: string) => {
+    if (!text) return null;
+    const regex = /(#[a-zA-Z0-9_]+)/g;
+    const parts = text.split(regex);
+    return parts.map((part, index) => {
+      if (regex.test(part)) {
+        return (
+          <Text key={index} style={{ color: "#5E17EB", fontFamily: "Inter-SemiBold" }}>
+            {part}
+          </Text>
+        );
+      }
+      return <Text key={index}>{part}</Text>;
+    });
+  };
+
   const handlePickImage = async () => {
     const permissionResult =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -81,11 +137,12 @@ export default function CreatePostScreen() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
+      allowsMultipleSelection: true,
       quality: 0.8,
     });
     if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+      const uris = result.assets.map((a) => a.uri);
+      setSelectedImages((prev) => [...prev, ...uris]);
     }
   };
 
@@ -101,7 +158,7 @@ export default function CreatePostScreen() {
       quality: 0.8,
     });
     if (!result.canceled) {
-      setSelectedImage(result.assets[0].uri);
+      setSelectedImages((prev) => [...prev, result.assets[0].uri]);
     }
   };
 
@@ -117,9 +174,9 @@ export default function CreatePostScreen() {
     setPollOptions(newOptions);
   };
 
-  const handlePost = () => {
+  const handlePost = async () => {
     const hasText = postText.trim().length > 0;
-    const hasImage = !!selectedImage;
+    const hasImage = selectedImages.length > 0;
     const hasValidPoll =
       showPoll &&
       pollOptions.filter((opt) => opt.trim().length > 0).length >= 2;
@@ -129,32 +186,51 @@ export default function CreatePostScreen() {
       return;
     }
 
-    // Build FormData
-    const formData = new FormData();
-    formData.append("content", postText.trim());
-    formData.append("campus", selectedCampus);
+    try {
+      // Build FormData
+      const formData = new FormData();
+      formData.append("content", postText.trim());
+      formData.append("campus", selectedCampus);
 
-    if (selectedImage) {
-      const filename = selectedImage.split("/").pop() ?? "photo.jpg";
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : "image/jpeg";
-      formData.append("image", {
-        uri: selectedImage,
-        name: filename,
-        type,
-      } as any);
+      if (selectedImages.length > 0) {
+        for (const uri of selectedImages) {
+          let filename = uri.split("/").pop() ?? "photo.jpg";
+          
+          if (!filename.includes(".")) {
+            filename += ".jpg";
+          }
+
+          if (Platform.OS === "web") {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            formData.append("media", blob, filename);
+          } else {
+            const fileType = filename.split(".").pop()?.toLowerCase();
+            const mimeType = (fileType === "png") ? "image/png" : "image/jpeg";
+            const fileObj = {
+              uri: uri,
+              name: filename,
+              type: mimeType,
+            };
+            formData.append("media", fileObj as any);
+          }
+        }
+      }
+
+      if (hasValidPoll) {
+        formData.append(
+          "poll",
+          JSON.stringify(
+            pollOptions.filter((o) => o.trim().length > 0).map((o) => o.trim())
+          )
+        );
+      }
+
+      submitPost(formData);
+    } catch (err: any) {
+      console.log("Post upload error:", err);
+      Toast.error("Error attaching image. Try again.");
     }
-
-    if (hasValidPoll) {
-      formData.append(
-        "poll",
-        JSON.stringify(
-          pollOptions.filter((o) => o.trim().length > 0).map((o) => o.trim())
-        )
-      );
-    }
-
-    submitPost(formData);
   };
 
   return (
@@ -216,30 +292,51 @@ export default function CreatePostScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <TextInput
-              style={styles.textInput}
-              placeholder="What's happening?"
-              placeholderTextColor="#B0B0B0"
-              multiline
-              autoFocus
-              value={postText}
-              onChangeText={setPostText}
-              textAlignVertical="top"
-            />
-
-            {selectedImage && (
-              <View style={styles.imagePreviewContainer}>
-                <Image
-                  source={{ uri: selectedImage }}
-                  style={styles.imagePreview}
-                />
-                <TouchableOpacity
-                  style={styles.removeImageBtn}
-                  onPress={() => setSelectedImage(null)}
-                >
-                  <FeatherIcon name="x" size={mscale(16)} color="#fff" />
-                </TouchableOpacity>
+            <View style={styles.richTextContainer}>
+              <TextInput
+                style={[styles.textInput, styles.invisibleInput]}
+                placeholder=""
+                multiline
+                autoFocus
+                value={postText}
+                onChangeText={setPostText}
+                textAlignVertical="top"
+                selectionColor="#000"
+              />
+              <View style={styles.textOverlayContainer} pointerEvents="none">
+                <Text style={styles.textOverlay}>
+                  {postText.length === 0 ? (
+                    <Text style={styles.placeholderText}>What's happening?</Text>
+                  ) : (
+                    renderFormattedText(postText)
+                  )}
+                </Text>
               </View>
+            </View>
+
+            {selectedImages.length > 0 && (
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                style={styles.imageScrollContainer}
+                keyboardShouldPersistTaps="handled"
+              >
+                {selectedImages.map((uri, idx) => (
+                  <View key={idx} style={styles.imagePreviewContainer}>
+                    <Image
+                      source={{ uri }}
+                      style={styles.imagePreview}
+                      resizeMode="contain"
+                    />
+                    <TouchableOpacity
+                      style={styles.removeImageBtn}
+                      onPress={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))}
+                    >
+                      <FeatherIcon name="x" size={mscale(16)} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
             )}
 
             {/* Poll Creation UI */}
@@ -301,7 +398,7 @@ export default function CreatePostScreen() {
                 <FeatherIcon
                   name="image"
                   size={mscale(20)}
-                  color={selectedImage ? "#5E17EB" : "#555"}
+                  color={selectedImages.length > 0 ? "#5E17EB" : "#555"}
                 />
               </TouchableOpacity>
               <TouchableOpacity style={styles.toolBtn} onPress={handleTakeImage}>
@@ -451,19 +548,44 @@ const styles = StyleSheet.create({
     marginBottom: hscale(20),
     borderRadius: mscale(8),
   },
+  richTextContainer: {
+    position: "relative",
+    minHeight: hscale(80),
+  },
   textInput: {
-    flex: 1,
     fontFamily: "Inter-Regular",
     fontSize: mscale(18),
     color: "#333",
-    minHeight: hscale(80),
     outlineStyle: "none",
   },
+  invisibleInput: {
+    color: "transparent",
+    zIndex: 2,
+    minHeight: hscale(80),
+  },
+  textOverlayContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  textOverlay: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(18),
+    color: "#333",
+  },
+  placeholderText: {
+    color: "#B0B0B0",
+  },
 
-  imagePreviewContainer: {
+  imageScrollContainer: {
     marginTop: hscale(16),
+  },
+  imagePreviewContainer: {
     position: "relative",
-    alignSelf: "flex-start",
+    marginRight: wscale(12),
   },
   imagePreview: {
     width: wscale(200),

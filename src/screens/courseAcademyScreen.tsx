@@ -1,4 +1,6 @@
 import React from "react";
+import { useQuery } from "@tanstack/react-query";
+import ProtectPage from "../components/protectPage";
 import {
   View,
   Text,
@@ -20,58 +22,8 @@ import BrushIcon from "@expo/vector-icons/Ionicons";
 
 import { colors } from "../constants/theme";
 import { hscale, mscale, wscale } from "../helpers/metric";
-
-// --- DUMMY DATA ---
-const ACADEMY_COURSES = [
-  {
-    id: "1",
-    title: "Smartphone Video Editing for Content Creators",
-    tag: "FREE",
-    tagColor: "#1EA464", // Green
-    duration: "2 Hours",
-    level: "Introductory",
-    price: null,
-    oldPrice: null,
-    iconType: "movie",
-    link: "https://solvaafrica.com/courses/video-editing",
-  },
-  {
-    id: "2",
-    title: "Introduction to Digital Marketing",
-    tag: "FULL CERTIFICATE",
-    tagColor: "#777777",
-    duration: "3 Hours",
-    level: null,
-    price: "#4,000",
-    oldPrice: "#15,000",
-    iconType: "cursor",
-    link: "https://solvaafrica.com/courses/digital-marketing",
-  },
-  {
-    id: "3",
-    title: "Coding for Beginners: HTML & CSS",
-    tag: "PROJECT INCLUDED",
-    tagColor: "#777777",
-    duration: "4 Hours",
-    level: null,
-    price: "#5,000",
-    oldPrice: "#20,000",
-    iconType: "code",
-    link: "https://solvaafrica.com/courses/coding",
-  },
-  {
-    id: "4",
-    title: "Graphic Design Fundamentals with Canva",
-    tag: "FULL ACCESS",
-    tagColor: "#777777",
-    duration: "2 Hours",
-    level: null,
-    price: "#3,000",
-    oldPrice: "#10,000",
-    iconType: "brush",
-    link: "https://solvaafrica.com/courses/design",
-  },
-];
+import { fetchAcademyCourses } from "../api/queries";
+import LottieView from "lottie-react-native";
 
 const renderIcon = (type: string) => {
   switch (type) {
@@ -109,15 +61,22 @@ const renderIcon = (type: string) => {
 };
 
 export default function CourseAcademyScreen() {
+  const { data: courses = [], isLoading } = useQuery({
+    queryKey: ["academyCourses"],
+    queryFn: fetchAcademyCourses,
+  });
+
   const handleStartLearning = (url: string) => {
+    if (!url) return;
     Linking.openURL(url).catch((err) =>
       console.error("Failed to open URL:", err)
     );
   };
 
   return (
-    <View style={styles.screen}>
-      {/* ── Header ── */}
+    <ProtectPage>
+      <View style={styles.screen}>
+        {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
           <BackIcon name="arrow-back" size={mscale(24)} color={colors.primary} />
@@ -129,58 +88,74 @@ export default function CourseAcademyScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {ACADEMY_COURSES.map((course) => (
-          <View key={course.id} style={styles.card}>
-            {/* Top row: Icon + Info */}
-            <View style={styles.cardTop}>
-              {renderIcon(course.iconType)}
-              <View style={styles.cardTopText}>
-                <Text style={[styles.tagText, { color: course.tagColor }]}>
-                  {course.tag}
-                </Text>
-                <Text style={styles.courseTitle}>{course.title}</Text>
+        {isLoading ? (
+          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", marginTop: hscale(50) }}>
+            <LottieView
+              autoPlay
+              loop
+              style={{ width: wscale(80), height: hscale(80) }}
+              source={require("../../assets/animations/spin.json")}
+            />
+          </View>
+        ) : courses.length === 0 ? (
+          <Text style={{ textAlign: "center", marginTop: hscale(50), color: "#666" }}>
+            No courses available yet.
+          </Text>
+        ) : (
+          courses.map((course: any) => (
+            <View key={course.id ?? course._id} style={styles.card}>
+              {/* Top row: Icon + Info */}
+              <View style={styles.cardTop}>
+                {renderIcon(course.iconType)}
+                <View style={styles.cardTopText}>
+                  <Text style={[styles.tagText, { color: course.tagColor || "#777" }]}>
+                    {course.tag || "COURSE"}
+                  </Text>
+                  <Text style={styles.courseTitle}>{course.title}</Text>
+                </View>
               </View>
-            </View>
 
-            {/* Meta row: Duration & Level */}
-            <View style={styles.metaRow}>
-              <View style={styles.metaItem}>
-                <ClockIcon name="clock" size={mscale(12)} color="#666" />
-                <Text style={styles.metaText}>{course.duration}</Text>
-              </View>
-              {course.level && (
-                <>
-                  <Text style={styles.metaDot}>•</Text>
-                  <View style={styles.metaItem}>
-                    <CheckBadgeIcon name="verified" size={mscale(12)} color="#666" />
-                    <Text style={styles.metaText}>{course.level}</Text>
-                  </View>
-                </>
-              )}
-            </View>
-
-            {/* Pricing row */}
-            {course.price && (
-              <View style={styles.pricingRow}>
-                <Text style={styles.priceText}>{course.price}</Text>
-                {course.oldPrice && (
-                  <Text style={styles.oldPriceText}>{course.oldPrice}</Text>
+              {/* Meta row: Duration & Level */}
+              <View style={styles.metaRow}>
+                <View style={styles.metaItem}>
+                  <ClockIcon name="clock" size={mscale(12)} color="#666" />
+                  <Text style={styles.metaText}>{course.duration || "N/A"}</Text>
+                </View>
+                {course.level && (
+                  <>
+                    <Text style={styles.metaDot}>•</Text>
+                    <View style={styles.metaItem}>
+                      <CheckBadgeIcon name="verified" size={mscale(12)} color="#666" />
+                      <Text style={styles.metaText}>{course.level}</Text>
+                    </View>
+                  </>
                 )}
               </View>
-            )}
 
-            {/* Button */}
-            <TouchableOpacity
-              style={styles.startBtn}
-              activeOpacity={0.7}
-              onPress={() => handleStartLearning(course.link)}
-            >
-              <Text style={styles.startBtnText}>Start Learning</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
+              {/* Pricing row */}
+              {course.price && (
+                <View style={styles.pricingRow}>
+                  <Text style={styles.priceText}>{course.price}</Text>
+                  {course.oldPrice && (
+                    <Text style={styles.oldPriceText}>{course.oldPrice}</Text>
+                  )}
+                </View>
+              )}
+
+              {/* Button */}
+              <TouchableOpacity
+                style={styles.startBtn}
+                activeOpacity={0.7}
+                onPress={() => handleStartLearning(course.link)}
+              >
+                <Text style={styles.startBtnText}>Start Learning</Text>
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
       </ScrollView>
     </View>
+    </ProtectPage>
   );
 }
 
