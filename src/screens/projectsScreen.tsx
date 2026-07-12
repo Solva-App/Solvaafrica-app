@@ -4,6 +4,7 @@ import AvatarIcon from "@expo/vector-icons/FontAwesome";
 import DownloadFeather from "@expo/vector-icons/Feather";
 import SearchIcon from "@expo/vector-icons/Feather";
 import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system";
 import ReactNativeBlobUtil from "react-native-blob-util";
 import {
   Alert,
@@ -232,7 +233,21 @@ const ProjectCard = ({
         }, 3000);
 
         // Save directly to device storage using expo-sharing for cross-platform reliability
-        if (Platform.OS === "android" || Platform.OS === "ios") {
+        if (Platform.OS === "android") {
+          try {
+            const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+            if (permissions.granted) {
+              const base64Data = await FileSystem.readAsStringAsync(result.fileUri, { encoding: FileSystem.EncodingType.Base64 });
+              const uri = await FileSystem.StorageAccessFramework.createFileAsync(permissions.directoryUri, fileName, "application/pdf");
+              await FileSystem.writeAsStringAsync(uri, base64Data, { encoding: FileSystem.EncodingType.Base64 });
+              Toast.success(`Saved to phone: ${fileName}`);
+            } else {
+              Toast.success(`Downloaded to app: ${fileName}`);
+            }
+          } catch {
+            Toast.success(`Downloaded: ${fileName}`);
+          }
+        } else if (Platform.OS === "ios") {
           try {
             await Sharing.shareAsync(result.fileUri, {
               dialogTitle: "Save or Share Project",

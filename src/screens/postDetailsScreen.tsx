@@ -297,8 +297,21 @@ export default function PostDetailsScreen() {
       });
       return { previousPost };
     },
-    onSuccess: () => {
+    onSuccess: (_, commentId) => {
       Toast.success("Comment deleted.");
+      // Ensure the comment stays deleted in the cache even if a background refetch is pending
+      queryClient.setQueryData(["post", postId], (old: any) => {
+        if (!old) return old;
+        const filterCommentTree = (comments: any[], targetId: string): any[] => {
+          return comments.filter((c: any) => String(c._id ?? c.id) !== targetId).map((c: any) => {
+            if (c.replies && Array.isArray(c.replies)) {
+              return { ...c, replies: filterCommentTree(c.replies, targetId) };
+            }
+            return c;
+          });
+        };
+        return { ...old, comments: filterCommentTree(old.comments || [], commentId) };
+      });
     },
     onError: (err: any, variables, context: any) => {
       if (context?.previousPost) {
@@ -307,8 +320,11 @@ export default function PostDetailsScreen() {
       Toast.error(err?.response?.data?.message || err?.message || "Failed to delete comment.");
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["post", postId] });
-      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      // Delay invalidation slightly so the backend database has time to catch up
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["post", postId] });
+        queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      }, 1000);
     }
   });
 
