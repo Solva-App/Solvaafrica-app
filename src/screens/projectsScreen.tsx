@@ -219,7 +219,7 @@ const ProjectCard = ({
   }, []);
 
   const handleDownload = async () => {
-    if (isDownloading || fileExist) return;
+    if (isDownloading) return;
     onDownloadStart();
     try {
       const result = await downloadFile("Projects", fileURI, fileName);
@@ -267,8 +267,21 @@ const ProjectCard = ({
     }
   };
 
-  const handleMobileDownload = () => {
-    if (isDownloading || fileExist) return;
+  const handleMobileDownload = async () => {
+    if (isDownloading) return;
+    
+    if (fileExist && localUri) {
+      if (Platform.OS === "android" || Platform.OS === "ios") {
+        try {
+          await Sharing.shareAsync(localUri, {
+            dialogTitle: "Save or Share Project",
+            mimeType: "application/pdf"
+          });
+        } catch {}
+      }
+      return;
+    }
+    
     if (DownloadIconRef.current) DownloadIconRef.current.play();
     setTimeout(() => { handleDownload(); }, 300);
   };
