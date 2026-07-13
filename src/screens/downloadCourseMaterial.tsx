@@ -117,22 +117,13 @@ export default function DownloadCourseMaterial() {
 
   const handleOpenDownloads = async () => {
     if (localFileUri) {
-      if (Platform.OS === "android") {
+      if (Platform.OS === "android" || Platform.OS === "ios") {
         try {
-          const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-          if (permissions.granted) {
-            const base64 = await FileSystem.readAsStringAsync(localFileUri, { encoding: FileSystem.EncodingType.Base64 });
-            const uri = await FileSystem.StorageAccessFramework.createFileAsync(permissions.directoryUri, originalFileName || 'material.pdf', 'application/pdf');
-            await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
-            Toast.success(`Saved to device`);
-          }
-        } catch (err) {
-          console.log("SAF error:", err);
-          await Sharing.shareAsync(localFileUri, { dialogTitle: "Save Course Material", mimeType: "application/octet-stream" });
-        }
-      } else if (Platform.OS === "ios") {
-        try {
-          await Sharing.shareAsync(localFileUri, { UTI: "public.item" });
+          await Sharing.shareAsync(localFileUri, { 
+            dialogTitle: "Save Course Material", 
+            mimeType: "application/pdf",
+            UTI: "public.pdf"
+          });
         } catch (err) {
           console.log("Error sharing file:", err);
         }

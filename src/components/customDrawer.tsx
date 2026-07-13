@@ -170,6 +170,9 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
           if (res.status === 200 || res.status === 201) {
             const remoteUri = res.data?.data?.profilePic ?? res.data?.profilePic ?? uri;
             setProfileImageUri(remoteUri);
+            
+            const userId = authUser?.profile?.userID || authUser?.profile?.id || "default";
+            await AsyncStorage.setItem(`profileImageUri_${userId}`, remoteUri);
             await AsyncStorage.setItem("profileImageUri", remoteUri);
             
             // Instantly update the main app state so it reflects everywhere

@@ -66,6 +66,17 @@ export default function LoginScreen() {
           const userProfile: UserProfile = normalizeUserProfile(data, {
             userID: userId,
           });
+
+          // Check if there is a cached profile image uploaded previously on this device
+          try {
+            const cachedPic = await AsyncStorage.getItem(`profileImageUri_${userId}`);
+            if (cachedPic && !userProfile.profilePic) {
+              userProfile.profilePic = cachedPic;
+            }
+          } catch (e) {
+            console.log("Error reading cached profile pic on login:", e);
+          }
+
           const user: { profile: UserProfile; tokens: Tokens | null } = {
             profile: userProfile,
             tokens,
