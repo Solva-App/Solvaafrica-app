@@ -174,6 +174,16 @@ export const deleteComment = async (commentId: string) => {
 /** Delete a post (own posts only) */
 export const deletePost = async (id: string) => {
   const response = await AUTH_API_CLIENT.delete(`/community/posts/${id}`);
+  
+  try {
+    const existingStr = await AsyncStorage.getItem("@my_offline_posts");
+    if (existingStr) {
+      const existing = JSON.parse(existingStr);
+      const filtered = existing.filter((p: any) => String(p._id ?? p.id ?? "") !== id);
+      await AsyncStorage.setItem("@my_offline_posts", JSON.stringify(filtered));
+    }
+  } catch (e) {}
+
   return response.data;
 };
 
