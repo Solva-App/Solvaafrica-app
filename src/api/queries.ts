@@ -1,4 +1,5 @@
 // get slider images
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AUTH_API_CLIENT, PUB_API_CLIENT } from "./apiClient";
 
 export const getSliderImages = async () => {
