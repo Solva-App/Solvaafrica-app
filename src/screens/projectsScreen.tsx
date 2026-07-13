@@ -205,7 +205,6 @@ const ProjectCard = ({
   const [fileExist, setFileExist] = useState(false);
   const [localUri, setLocalUri] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
-  const downloadFile = useDownloadFile(true, "PRJ");
   const DownloadIconRef = useRef<LottieView>(null);
   const downloadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const badge = getBadge(index);
@@ -221,47 +220,55 @@ const ProjectCard = ({
   const handleDownload = async () => {
     if (isDownloading) return;
     onDownloadStart();
-    try {
-      const result = await downloadFile("Projects", fileURI, fileName);
-      if (result.success && result.fileUri) {
-        setFileExist(true);
-        setLocalUri(result.fileUri);
-        setDownloadSuccess(true);
-        if (downloadTimeoutRef.current) clearTimeout(downloadTimeoutRef.current);
-        downloadTimeoutRef.current = setTimeout(() => {
-          setDownloadSuccess(false);
-        }, 3000);
 
-        // Save directly to device storage using expo-sharing for cross-platform reliability
-        if (Platform.OS === "android" || Platform.OS === "ios") {
-          try {
-            await Sharing.shareAsync(result.fileUri, {
-              dialogTitle: "Save or Share Project",
-              mimeType: "application/pdf"
-            });
-          } catch {
-            Toast.success(`Downloaded: ${fileName}`);
-          }
-        } else if (Platform.OS === "web") {
-          try {
-            const link = document.createElement("a");
-            link.href = result.fileUri;
-            link.setAttribute("download", fileName);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            Toast.success(`Downloading: ${fileName}`);
-          } catch (e) {
-            Toast.success(`Downloaded: ${fileName}`);
-          }
-        } else {
-          Toast.success(`Downloaded: ${fileName}`);
-        }
-      } else {
-        Toast.error(`Failed to download: ${fileName}`);
+    try {
+      if (!fileURI) {
+        Toast.error("No file URL found for this project.");
+        return;
       }
-    } catch (error) {
-      Toast.error(`Download failed: ${fileName}`);
+
+      if (Platform.OS === "web") {
+        // Web: trigger browser download
+        const link = document.createElement("a");
+        link.href = fileURI;
+        link.setAttribute("download", fileName);
+        link.target = "_blank";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        Toast.success(`Downloading: ${fileName}`);
+        setFileExist(true);
+        return;
+      }
+
+      // Mobile: download to cache then share
+      const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const destPath = FileSystem.cacheDirectory + safeFileName;
+
+      Toast.success("Downloading...");
+      const { uri, status } = await FileSystem.downloadAsync(fileURI, destPath);
+
+      if (status !== 200) {
+        Toast.error(`Download failed (status ${status}). Please try again.`);
+        return;
+      }
+
+      setFileExist(true);
+      setLocalUri(uri);
+      setDownloadSuccess(true);
+      if (downloadTimeoutRef.current) clearTimeout(downloadTimeoutRef.current);
+      downloadTimeoutRef.current = setTimeout(() => { setDownloadSuccess(false); }, 3000);
+
+      // Open share/save sheet immediately
+      await Sharing.shareAsync(uri, {
+        dialogTitle: "Save or Share Project",
+        mimeType: "application/pdf",
+        UTI: "public.pdf",
+      });
+
+    } catch (error: any) {
+      console.log("Project download error:", error?.message || error);
+      Toast.error("Download failed. Check your internet and try again.");
     } finally {
       onDownloadComplete();
     }
@@ -269,19 +276,19 @@ const ProjectCard = ({
 
   const handleMobileDownload = async () => {
     if (isDownloading) return;
-    
+
+    // If already downloaded, re-open share sheet
     if (fileExist && localUri) {
-      if (Platform.OS === "android" || Platform.OS === "ios") {
-        try {
-          await Sharing.shareAsync(localUri, {
-            dialogTitle: "Save or Share Project",
-            mimeType: "application/pdf"
-          });
-        } catch {}
-      }
+      try {
+        await Sharing.shareAsync(localUri, {
+          dialogTitle: "Save or Share Project",
+          mimeType: "application/pdf",
+          UTI: "public.pdf",
+        });
+      } catch {}
       return;
     }
-    
+
     if (DownloadIconRef.current) DownloadIconRef.current.play();
     setTimeout(() => { handleDownload(); }, 300);
   };
