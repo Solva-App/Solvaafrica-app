@@ -95,6 +95,21 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
         const saved = await AsyncStorage.getItem("profileImageUri");
         if (saved) {
           setProfileImageUri(saved);
+          
+          // Inject into global store so the rest of the app gets it immediately
+          const currentUser = useAuthStore.getState().user;
+          if (currentUser && currentUser.profile.profilePic !== saved) {
+            const updatedUser = {
+              ...currentUser,
+              profile: {
+                ...currentUser.profile,
+                profilePic: saved,
+                avatar: saved
+              }
+            };
+            useAuthStore.setState((s) => ({ ...s, user: updatedUser }));
+            AsyncStorage.setItem("User", JSON.stringify(updatedUser));
+          }
         } else if (authUser?.profile?.profilePic || authUser?.profile?.avatar) {
           setProfileImageUri(authUser.profile.profilePic || authUser.profile.avatar);
         }
@@ -153,8 +168,12 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
           });
 
           if (res.status === 200 || res.status === 201) {
-            setProfileImageUri(uri);
-            await AsyncStorage.setItem("profileImageUri", uri);
+            const remoteUri = res.data?.data?.profilePic ?? res.data?.profilePic ?? uri;
+            setProfileImageUri(remoteUri);
+            
+            const userId = authUser?.profile?.userID || authUser?.profile?.id || "default";
+            await AsyncStorage.setItem(`profileImageUri_${userId}`, remoteUri);
+            await AsyncStorage.setItem("profileImageUri", remoteUri);
             
             // Instantly update the main app state so it reflects everywhere
             const cachedUser = await AsyncStorage.getItem("User");
@@ -163,8 +182,8 @@ export default function CustomDrawer(props: DrawerContentComponentProps) {
               ...user, 
               profile: { 
                 ...user?.profile, 
-                profilePic: res.data?.data?.profilePic ?? res.data?.profilePic ?? uri,
-                avatar: res.data?.data?.profilePic ?? res.data?.profilePic ?? uri 
+                profilePic: remoteUri,
+                avatar: remoteUri 
               } 
             };
             

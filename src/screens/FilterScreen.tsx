@@ -82,6 +82,14 @@ export default function FilterScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMenuPostId, setActiveMenuPostId] = useState<string | null>(null);
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
   // ── Fetch posts ──
   const {
     data: rawPosts = [],
@@ -92,7 +100,7 @@ export default function FilterScreen() {
   } = useQuery({
     queryKey: ["community-posts"],
     queryFn: fetchCommunityPosts,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const posts = rawPosts.map((raw: any) => normalisePost(raw, authUser));
@@ -101,7 +109,7 @@ export default function FilterScreen() {
   const { data: trendingData = [] } = useQuery({
     queryKey: ["community-trending"],
     queryFn: fetchTrendingTopics,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const trendingTopics = trendingData.length > 0 
@@ -143,12 +151,32 @@ export default function FilterScreen() {
   // ── Delete mutation ──
   const deleteMutation = useMutation({
     mutationFn: (postId: string) => deletePost(postId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+    onMutate: async (postId) => {
+      await queryClient.cancelQueries({ queryKey: ["community-posts"] });
+      const previous = queryClient.getQueryData(["community-posts"]);
+      queryClient.setQueryData(["community-posts"], (old: any[]) =>
+        (old ?? []).filter((p: any) => String(p._id ?? p.id ?? "") !== postId)
+      );
+      return { previous };
+    },
+    onSuccess: (_, postId) => {
+      // Keep it deleted in cache
+      queryClient.setQueryData(["community-posts"], (old: any[]) =>
+        (old ?? []).filter((p: any) => String(p._id ?? p.id ?? "") !== postId)
+      );
       Toast.success("Post deleted.");
     },
-    onError: () => {
+    onError: (err, vars, ctx) => {
+      if (ctx?.previous) {
+        queryClient.setQueryData(["community-posts"], ctx.previous);
+      }
       Toast.error("Failed to delete post. You can only delete your own posts.");
+    },
+    onSettled: () => {
+      // Delay invalidation slightly so the backend database has time to catch up
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ["community-posts"] });
+      }, 1000);
     }
   });
 
@@ -246,8 +274,8 @@ export default function FilterScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
             colors={[colors.primary]}
             tintColor={colors.primary}
           />

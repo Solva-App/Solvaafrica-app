@@ -237,24 +237,13 @@ export default function CoursesList() {
             );
 
             // Save to device
-            if (Platform.OS === "android") {
+            if (Platform.OS === "android" || Platform.OS === "ios") {
               try {
-                const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-                if (permissions.granted) {
-                  const base64 = await FileSystem.readAsStringAsync(result.fileUri, { encoding: FileSystem.EncodingType.Base64 });
-                  const uri = await FileSystem.StorageAccessFramework.createFileAsync(permissions.directoryUri, docName, 'application/pdf');
-                  await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
-                  Toast.success(`Saved to device: ${docName}`);
-                } else {
-                  Toast.success(`Downloaded: ${docName}`);
-                }
-              } catch (err) {
-                console.log("SAF error:", err);
-                await Sharing.shareAsync(result.fileUri, { dialogTitle: "Save Course Material", mimeType: "application/octet-stream" });
-              }
-            } else if (Platform.OS === "ios") {
-              try {
-                await Sharing.shareAsync(result.fileUri, { UTI: "public.item" });
+                await Sharing.shareAsync(result.fileUri, { 
+                  dialogTitle: "Save Course Material", 
+                  mimeType: "application/pdf",
+                  UTI: "public.pdf"
+                });
               } catch {
                 Toast.success(`Downloaded: ${docName}`);
               }

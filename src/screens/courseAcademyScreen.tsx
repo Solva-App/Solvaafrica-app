@@ -102,56 +102,68 @@ export default function CourseAcademyScreen() {
             No courses available yet.
           </Text>
         ) : (
-          courses.map((course: any) => (
-            <View key={course.id ?? course._id} style={styles.card}>
-              {/* Top row: Icon + Info */}
-              <View style={styles.cardTop}>
-                {renderIcon(course.iconType)}
-                <View style={styles.cardTopText}>
-                  <Text style={[styles.tagText, { color: course.tagColor || "#777" }]}>
-                    {course.tag || "COURSE"}
-                  </Text>
-                  <Text style={styles.courseTitle}>{course.title}</Text>
-                </View>
-              </View>
+          courses.map((course: any, idx: number) => {
+            const courseId = course.id ?? course._id ?? idx;
+            const title = course.title ?? course.name ?? course.courseTitle ?? "Course";
+            const link = course.link ?? course.url ?? course.courseUrl ?? course.courseLink ?? "";
+            const duration = course.duration ?? course.time ?? course.length ?? "N/A";
+            const level = course.level ?? course.difficulty ?? course.courseLevel;
+            const price = course.price ?? course.cost ?? course.amount;
+            const oldPrice = course.oldPrice ?? course.previousPrice ?? course.discountPrice;
+            const tag = course.tag ?? course.category ?? course.courseCategory ?? "COURSE";
+            const iconType = course.iconType ?? course.icon ?? "movie";
 
-              {/* Meta row: Duration & Level */}
-              <View style={styles.metaRow}>
-                <View style={styles.metaItem}>
-                  <ClockIcon name="clock" size={mscale(12)} color="#666" />
-                  <Text style={styles.metaText}>{course.duration || "N/A"}</Text>
+            return (
+              <View key={courseId} style={styles.card}>
+                {/* Top row: Icon + Info */}
+                <View style={styles.cardTop}>
+                  {renderIcon(iconType)}
+                  <View style={styles.cardTopText}>
+                    <Text style={[styles.tagText, { color: course.tagColor || "#777" }]}>
+                      {tag}
+                    </Text>
+                    <Text style={styles.courseTitle}>{title}</Text>
+                  </View>
                 </View>
-                {course.level && (
-                  <>
-                    <Text style={styles.metaDot}>•</Text>
-                    <View style={styles.metaItem}>
-                      <CheckBadgeIcon name="verified" size={mscale(12)} color="#666" />
-                      <Text style={styles.metaText}>{course.level}</Text>
-                    </View>
-                  </>
-                )}
-              </View>
 
-              {/* Pricing row */}
-              {course.price && (
-                <View style={styles.pricingRow}>
-                  <Text style={styles.priceText}>{course.price}</Text>
-                  {course.oldPrice && (
-                    <Text style={styles.oldPriceText}>{course.oldPrice}</Text>
+                {/* Meta row: Duration & Level */}
+                <View style={styles.metaRow}>
+                  <View style={styles.metaItem}>
+                    <ClockIcon name="clock" size={mscale(12)} color="#666" />
+                    <Text style={styles.metaText}>{duration}</Text>
+                  </View>
+                  {level && (
+                    <>
+                      <Text style={styles.metaDot}>•</Text>
+                      <View style={styles.metaItem}>
+                        <CheckBadgeIcon name="verified" size={mscale(12)} color="#666" />
+                        <Text style={styles.metaText}>{level}</Text>
+                      </View>
+                    </>
                   )}
                 </View>
-              )}
 
-              {/* Button */}
-              <TouchableOpacity
-                style={styles.startBtn}
-                activeOpacity={0.7}
-                onPress={() => handleStartLearning(course.link)}
-              >
-                <Text style={styles.startBtnText}>Start Learning</Text>
-              </TouchableOpacity>
-            </View>
-          ))
+                {/* Pricing row */}
+                {price && (
+                  <View style={styles.pricingRow}>
+                    <Text style={styles.priceText}>{price}</Text>
+                    {oldPrice && (
+                      <Text style={styles.oldPriceText}>{oldPrice}</Text>
+                    )}
+                  </View>
+                )}
+
+                {/* Button */}
+                <TouchableOpacity
+                  style={styles.startBtn}
+                  activeOpacity={0.7}
+                  onPress={() => handleStartLearning(link)}
+                >
+                  <Text style={styles.startBtnText}>Start Learning</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })
         )}
       </ScrollView>
     </View>

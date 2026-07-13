@@ -36,9 +36,34 @@ export const getUserSubscriptionStatus = async () => {
 
 /** Fetch all community posts (feed) */
 export const fetchCommunityPosts = async () => {
-  const response = await AUTH_API_CLIENT.get("/community/posts");
-  const data = response.data?.data ?? response.data ?? [];
-  return data;
+  try {
+    const response = await AUTH_API_CLIENT.get("/community/posts");
+    const data = response.data?.data ?? response.data ?? [];
+    
+    // Cache the latest server response
+    if (Array.isArray(data) && data.length > 0) {
+      AsyncStorage.setItem("@cached_community_posts", JSON.stringify(data)).catch(() => {});
+    }
+    
+    // Merge with optimistically saved local posts
+    const localPostsStr = await AsyncStorage.getItem("@my_offline_posts");
+    if (localPostsStr) {
+      const localPosts = JSON.parse(localPostsStr);
+      const serverIds = new Set(data.map((p: any) => String(p._id ?? p.id ?? "")));
+      const unmergedLocal = localPosts.filter((p: any) => !serverIds.has(String(p._id ?? p.id ?? "")));
+      return [...unmergedLocal, ...data];
+    }
+    
+    return data;
+  } catch (err) {
+    const cachedStr = await AsyncStorage.getItem("@cached_community_posts");
+    if (cachedStr) return JSON.parse(cachedStr);
+    
+    const localPostsStr = await AsyncStorage.getItem("@my_offline_posts");
+    if (localPostsStr) return JSON.parse(localPostsStr);
+    
+    throw err;
+  }
 };
 
 /** Fetch a single post with its comments by ID */
@@ -66,6 +91,19 @@ export const fetchPostById = async (id: string) => {
 /** Create a new community post (text + optional image) */
 export const createCommunityPost = async (formData: FormData) => {
   const response = await AUTH_API_CLIENT.post("/community/posts", formData);
+  
+  // Save optimistic fallback to local storage
+  try {
+    const newPost = response.data?.data?.post ?? response.data?.post ?? response.data?.data ?? response.data;
+    if (newPost && (newPost._id || newPost.id)) {
+      const existingStr = await AsyncStorage.getItem("@my_offline_posts");
+      const existing = existingStr ? JSON.parse(existingStr) : [];
+      await AsyncStorage.setItem("@my_offline_posts", JSON.stringify([newPost, ...existing]));
+    }
+  } catch (e) {
+    // Ignore storage errors
+  }
+  
   return response.data;
 };
 
@@ -136,6 +174,16 @@ export const deleteComment = async (commentId: string) => {
 /** Delete a post (own posts only) */
 export const deletePost = async (id: string) => {
   const response = await AUTH_API_CLIENT.delete(`/community/posts/${id}`);
+  
+  try {
+    const existingStr = await AsyncStorage.getItem("@my_offline_posts");
+    if (existingStr) {
+      const existing = JSON.parse(existingStr);
+      const filtered = existing.filter((p: any) => String(p._id ?? p.id ?? "") !== id);
+      await AsyncStorage.setItem("@my_offline_posts", JSON.stringify(filtered));
+    }
+  } catch (e) {}
+
   return response.data;
 };
 
@@ -147,7 +195,7 @@ export const fetchTrendingTopics = async () => {
 
 /** Fetch Course Academy courses from the admin repository */
 export const fetchAcademyCourses = async () => {
-  const response = await AUTH_API_CLIENT.get("/academy");
+  const response = await AUTH_API_CLIENT.get("/courses");
   return response.data?.data ?? response.data ?? [];
 };
 
