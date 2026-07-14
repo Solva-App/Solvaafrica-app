@@ -99,8 +99,9 @@ export default function CreateAccountScreen() {
     } catch (error: any) {
       console.log("Error creating user", error.response.data);
 
-      if (error.status === 401) {
-        const { message } = error.response.data;
+      const status = error?.response?.status ?? error?.status;
+      if (status === 401 || status === 400) {
+        const message = error?.response?.data?.message || "Invalid input";
         Toast.error(message);
         return;
       }
