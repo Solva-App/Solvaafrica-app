@@ -84,12 +84,6 @@ export default function FilterScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  }, [refetch]);
-
   // ── Fetch posts ──
   const {
     data: rawPosts = [],
@@ -102,6 +96,12 @@ export default function FilterScreen() {
     queryFn: fetchCommunityPosts,
     refetchOnWindowFocus: false,
   });
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const posts = rawPosts.map((raw: any) => normalisePost(raw, authUser));
 
