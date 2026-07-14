@@ -228,20 +228,14 @@ const ProjectCard = ({
       }
 
       if (Platform.OS === "web") {
-        // Web: trigger browser download
-        const link = document.createElement("a");
-        link.href = fileURI;
-        link.setAttribute("download", fileName);
-        link.target = "_blank";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        Toast.success(`Downloading: ${fileName}`);
+        // Web: open the file URL directly in a new tab (works for Firebase/S3/Cloudinary)
+        window.open(fileURI, "_blank");
+        Toast.success(`Opening: ${fileName}`);
         setFileExist(true);
         return;
       }
 
-      // Mobile: download to cache then share
+      // Mobile: download to cache
       const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
       const destPath = FileSystem.cacheDirectory + safeFileName;
 
@@ -258,13 +252,7 @@ const ProjectCard = ({
       setDownloadSuccess(true);
       if (downloadTimeoutRef.current) clearTimeout(downloadTimeoutRef.current);
       downloadTimeoutRef.current = setTimeout(() => { setDownloadSuccess(false); }, 3000);
-
-      // Open share/save sheet immediately
-      await Sharing.shareAsync(uri, {
-        dialogTitle: "Save or Share Project",
-        mimeType: "application/pdf",
-        UTI: "public.pdf",
-      });
+      Toast.success("Downloaded! Tap 'Save to Phone' to save it.");
 
     } catch (error: any) {
       console.log("Project download error:", error?.message || error);
@@ -277,15 +265,13 @@ const ProjectCard = ({
   const handleMobileDownload = async () => {
     if (isDownloading) return;
 
-    // If already downloaded, re-open share sheet
+    // If already downloaded, open share sheet (non-blocking)
     if (fileExist && localUri) {
-      try {
-        await Sharing.shareAsync(localUri, {
-          dialogTitle: "Save or Share Project",
-          mimeType: "application/pdf",
-          UTI: "public.pdf",
-        });
-      } catch {}
+      Sharing.shareAsync(localUri, {
+        dialogTitle: "Save or Share Project",
+        mimeType: "application/pdf",
+        UTI: "public.pdf",
+      }).catch(() => {});
       return;
     }
 

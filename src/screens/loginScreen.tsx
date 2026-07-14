@@ -39,12 +39,6 @@ export default function LoginScreen() {
   const handleFormSubmit = async () => {
     emailRef.current?.blur();
     
-    // Bypass auth for preview mode if needed, but keeping actual logic
-    if (form.email === "test@solva.com" || form.password === "test") {
-      router.replace("/(tabs)");
-      return;
-    }
-
     const { email, password } = form;
 
     if (!email || !password) return;
@@ -91,7 +85,8 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       let message = "Something went wrong!";
-      if (error.status === 400 || error.status === 401) {
+      const status = error?.response?.status ?? error?.status;
+      if (status === 400 || status === 401) {
         message = "Email or Password is incorrect. Try again!";
       }
       setErrorMessage(message);
