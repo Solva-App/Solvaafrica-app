@@ -51,21 +51,23 @@ export default function ForgotPassword() {
       setLoading(false);
       console.log("Error in forgot password", error.response);
 
-      if (error.status === 400 || 401) {
+      const status = error?.response?.status ?? error?.status;
+
+      if (status === 400 || status === 401) {
         const message = "Error, check email and try again Try again!";
         setErrorMessage(message);
         setErrorVisible(true);
         return;
       }
 
-      if (error.status === 500) {
+      if (status === 500) {
         const message = "Server error, please try again later!";
         setErrorMessage(message);
         setErrorVisible(true);
         return;
       }
 
-      if (error.status === 404) {
+      if (status === 404) {
         const message = "Email not found!";
         setErrorMessage(message);
         setErrorVisible(true);
