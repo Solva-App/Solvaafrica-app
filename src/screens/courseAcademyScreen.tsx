@@ -110,6 +110,7 @@ export default function CourseAcademyScreen() {
             const level = course.level ?? course.difficulty ?? course.courseLevel;
             const price = course.price ?? course.cost ?? course.amount;
             const oldPrice = course.oldPrice ?? course.previousPrice ?? course.discountPrice;
+            const description = course.description ?? course.desc ?? course.details ?? course.summary ?? "";
             const tag = course.tag ?? course.category ?? course.courseCategory ?? "COURSE";
             const iconType = course.iconType ?? course.icon ?? "movie";
 
@@ -144,14 +145,23 @@ export default function CourseAcademyScreen() {
                 </View>
 
                 {/* Pricing row */}
-                {price && (
+                {(price !== undefined && price !== null && price !== "") && (
                   <View style={styles.pricingRow}>
-                    <Text style={styles.priceText}>{price}</Text>
-                    {oldPrice && (
+                    <Text style={styles.priceText}>
+                      {typeof price === "number" && price === 0 ? "Free" : price}
+                    </Text>
+                    {(oldPrice !== undefined && oldPrice !== null && oldPrice !== "") && (
                       <Text style={styles.oldPriceText}>{oldPrice}</Text>
                     )}
                   </View>
                 )}
+
+                {/* Description */}
+                {description ? (
+                  <Text style={styles.courseDescription} numberOfLines={2}>
+                    {description}
+                  </Text>
+                ) : null}
 
                 {/* Button */}
                 <TouchableOpacity
@@ -264,8 +274,7 @@ const styles = StyleSheet.create({
   pricingRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: hscale(16),
-    marginTop: hscale(-6),
+    marginBottom: hscale(12),
   },
   priceText: {
     fontFamily: "Inter-Bold",
@@ -278,6 +287,13 @@ const styles = StyleSheet.create({
     fontSize: mscale(13),
     color: "#999",
     textDecorationLine: "line-through",
+  },
+  courseDescription: {
+    fontFamily: "Inter-Regular",
+    fontSize: mscale(13),
+    color: "#666",
+    lineHeight: mscale(19),
+    marginBottom: hscale(16),
   },
   startBtn: {
     backgroundColor: colors.primary,

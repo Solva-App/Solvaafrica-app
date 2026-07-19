@@ -1,5 +1,6 @@
 // get slider images
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import { AUTH_API_CLIENT, PUB_API_CLIENT } from "./apiClient";
 
 export const getSliderImages = async () => {
@@ -37,7 +38,7 @@ export const getUserSubscriptionStatus = async () => {
 
 /** Fetch all community posts (feed) */
 export const fetchCommunityPosts = async () => {
-  const isWeb = typeof window !== "undefined" && typeof document !== "undefined" && !navigator?.product?.includes?.("ReactNative");
+  const isWeb = Platform.OS === "web";
 
   try {
     const response = await AUTH_API_CLIENT.get("/community/posts");
@@ -106,7 +107,7 @@ export const createCommunityPost = async (formData: FormData) => {
   const response = await AUTH_API_CLIENT.post("/community/posts", formData);
 
   // Save optimistic fallback to local storage (mobile only — AsyncStorage not available on web)
-  const isNative = typeof navigator !== "undefined" && navigator?.product === "ReactNative";
+  const isNative = Platform.OS !== "web";
   if (isNative) {
     try {
       const newPost = response.data?.data?.post ?? response.data?.post ?? response.data?.data ?? response.data;
@@ -192,7 +193,7 @@ export const deletePost = async (id: string) => {
   const response = await AUTH_API_CLIENT.delete(`/community/posts/${id}`);
 
   // Remove from local cache (mobile only)
-  const isNative = typeof navigator !== "undefined" && navigator?.product === "ReactNative";
+  const isNative = Platform.OS !== "web";
   if (isNative) {
     try {
       const existingStr = await AsyncStorage.getItem("@my_offline_posts");
