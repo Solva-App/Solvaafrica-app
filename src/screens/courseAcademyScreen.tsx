@@ -10,6 +10,7 @@ import {
   Pressable,
   Linking,
   Platform,
+  Image,
 } from "react-native";
 import { router } from "expo-router";
 import BackIcon from "@expo/vector-icons/Ionicons";
@@ -25,8 +26,41 @@ import { hscale, mscale, wscale } from "../helpers/metric";
 import { fetchAcademyCourses } from "../api/queries";
 import LottieView from "lottie-react-native";
 
-const renderIcon = (type: string) => {
-  switch (type) {
+const renderIcon = (type: string, tag: string, imageUrl: string) => {
+  if (imageUrl) {
+    return (
+      <View style={styles.iconWrap}>
+        <Image source={{ uri: imageUrl }} style={{ width: "100%", height: "100%", borderRadius: mscale(10) }} resizeMode="cover" />
+      </View>
+    );
+  }
+
+  const categoryLower = tag ? tag.toLowerCase() : "";
+  let resolvedType = type;
+
+  if (categoryLower.includes("photo") || categoryLower.includes("video") || categoryLower.includes("camera")) {
+    resolvedType = "camera";
+  } else if (categoryLower.includes("design") || categoryLower.includes("art") || categoryLower.includes("creative")) {
+    resolvedType = "brush";
+  } else if (categoryLower.includes("code") || categoryLower.includes("dev") || categoryLower.includes("program")) {
+    resolvedType = "code";
+  } else if (categoryLower.includes("business") || categoryLower.includes("finance") || categoryLower.includes("market")) {
+    resolvedType = "business";
+  }
+
+  switch (resolvedType) {
+    case "camera":
+      return (
+        <View style={[styles.iconWrap, { backgroundColor: "#EDE5F6" }]}>
+          <BrushIcon name="camera" size={mscale(20)} color="#6207A0" />
+        </View>
+      );
+    case "business":
+      return (
+        <View style={[styles.iconWrap, { backgroundColor: "#EDE5F6" }]}>
+          <BrushIcon name="briefcase" size={mscale(20)} color="#6207A0" />
+        </View>
+      );
     case "movie":
       return (
         <View style={[styles.iconWrap, { backgroundColor: "#EDE5F6" }]}>
@@ -113,12 +147,13 @@ export default function CourseAcademyScreen() {
             const description = course.description ?? course.desc ?? course.details ?? course.summary ?? "";
             const tag = course.tag ?? course.category ?? course.courseCategory ?? "COURSE";
             const iconType = course.iconType ?? course.icon ?? "movie";
+            const thumbnail = course.thumbnail ?? course.image ?? course.imageUrl ?? "";
 
             return (
               <View key={courseId} style={styles.card}>
                 {/* Top row: Icon + Info */}
                 <View style={styles.cardTop}>
-                  {renderIcon(iconType)}
+                  {renderIcon(iconType, tag, thumbnail)}
                   <View style={styles.cardTopText}>
                     <Text style={[styles.tagText, { color: course.tagColor || "#777" }]}>
                       {tag}
