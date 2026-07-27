@@ -73,7 +73,12 @@ AUTH_API_CLIENT.interceptors.response.use(
       console.log("🚫 NETWORK ERROR:", err.message);
     }
 
-    if (err?.response?.status === 401 && !originalRequest._retry) {
+    const errorMessage = err?.response?.data?.message?.toLowerCase() || "";
+    const isAuthError = 
+      err?.response?.status === 401 || 
+      (err?.response?.status === 400 && (errorMessage.includes("token") || errorMessage.includes("authentication") || errorMessage.includes("unauthorized")));
+
+    if (isAuthError && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
         const serializedUser = await AsyncStorage.getItem("User");

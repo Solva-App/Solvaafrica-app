@@ -1,7 +1,7 @@
-import  OnboardScreen  from "../screens/OnboardScreen";
+import SplashScreen from "../screens/SplashScreen";
 
 export const options = {
   headerShown: false,
 };
 
-export default OnboardScreen;
+export default SplashScreen;
