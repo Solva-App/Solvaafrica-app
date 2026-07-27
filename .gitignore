@@ -40,3 +40,6 @@ yarn-error.*
 
 app-example
 assets/fonts/SpaceMono-Regular.ttf
+
+# Play Store Update files
+app-update/
