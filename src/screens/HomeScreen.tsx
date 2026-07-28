@@ -65,8 +65,8 @@ const OPP_CARDS = [
     tag: 'PAID TASK', 
     tagBg: 'rgba(168, 85, 247, 0.15)', 
     tagColor: '#8B2BE2',
-    title: 'UI/UX Audit for Startups', 
-    subtitle: 'Earn ₦15,000 per task',
+    title: 'Earn ₦15,000 per task', 
+    subtitle: null,
     btnLabel: 'Start Task',
     btnBg: '#9133E8', // Bright vibrant purple
     route: '/task',    
@@ -82,14 +82,18 @@ const STORIES = [
     quote: '"I got a freelance gig using Solva services. Just like Fiverr!"',
     name: 'Chidi',
     uni: 'UNN',
-    avatar: 'https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f?w=100&h=100&fit=crop&crop=faces',
+    // <-- ADD CHIDI'S IMAGE HERE -->
+    avatar: require('../../assets/images/avatar-1.png'),
+    // avatar: null,
   },
   {
     id: '2',
     quote: '"Being Premium means I get rewarded for helping others learn."',
     name: 'Emeka',
     uni: 'FUTA',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=faces',
+    // <-- ADD EMEKA'S IMAGE HERE -->
+    avatar: require('../../assets/images/avatar-2.png'),
+    // avatar: null,
   },
 ];
 
@@ -138,9 +142,9 @@ export default function HomeScreen() {
             <AvatarView size={mscale(42)} />
           </TouchableOpacity>
           <View style={styles.headerText}>
-            <Text style={styles.greetText}>Hello, {firstName}</Text>
+            <Text style={styles.greetText}>Hello, {firstName || 'Daniel'}</Text>
             <Text style={styles.subText} numberOfLines={1}>
-              {profile?.institution ?? 'International Engineering Factory.'}
+              Here's what happening today.
             </Text>
           </View>
         </View>
@@ -158,14 +162,13 @@ export default function HomeScreen() {
           {/* Social proof row */}
           <View style={styles.socialRow}>
             <View style={styles.miniAvatarsRow}>
-              <Image
-                source={{ uri: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=faces' }}
-                style={[styles.miniAvatarImg, { zIndex: 3 }]}
-              />
-              <Image
-                source={{ uri: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&h=80&fit=crop&crop=faces' }}
-                style={[styles.miniAvatarImg, styles.miniAvatarOverlap, { zIndex: 2 }]}
-              />
+              {/* <-- ADD YOUR 1ST IMAGE HERE --> */}
+              <Image source={require('../../assets/images/avatar-1.png')} style={[styles.miniAvatarImg, { zIndex: 3 }]} />
+              {/* <View style={[styles.miniAvatarImg, { zIndex: 3, backgroundColor: 'rgba(255,255,255,0.2)' }]} /> */}
+
+              {/* <-- ADD YOUR 2ND IMAGE HERE --> */}
+              <Image source={require('../../assets/images/avatar-2.png')} style={[styles.miniAvatarImg, styles.miniAvatarOverlap, { zIndex: 2 }]} />
+              {/* <View style={[styles.miniAvatarImg, styles.miniAvatarOverlap, { zIndex: 2, backgroundColor: 'rgba(255,255,255,0.2)' }]} /> */}
               <View style={[styles.miniAvatarImg, styles.miniAvatarOverlap, styles.miniAvatarCount, { zIndex: 1 }]}>
                 <Text style={styles.miniAvatarCountText}>1k+</Text>
               </View>
@@ -338,7 +341,11 @@ export default function HomeScreen() {
                 <Text style={styles.storyQuote}>{s.quote}</Text>
               </View>
               <View style={styles.storyUserRow}>
-                <Image source={{ uri: s.avatar }} style={styles.storyAvatar} />
+                {s.avatar ? (
+                  <Image source={s.avatar} style={styles.storyAvatar} />
+                ) : (
+                  <View style={[styles.storyAvatar, { backgroundColor: '#D4D4D8' }]} />
+                )}
                 <View>
                   <Text style={styles.storyName}>{s.name}</Text>
                   <Text style={styles.storyUni}>{s.uni}</Text>
@@ -392,33 +399,15 @@ export default function HomeScreen() {
         <View style={{ height: hscale(120) }} />
       </ScrollView>
 
-      {/* ── Floating Quick Actions ──────────────────────────────────── */}
-      <View style={styles.fabContainer}>
-        <Text style={styles.quickActionsLabel}>QUICK ACTIONS</Text>
-        <View style={styles.fabRow}>
-          <TouchableOpacity
-            style={styles.kemiPill}
-            activeOpacity={0.85}
-            onPress={() => router.push('/kemiMasteryHub')}
-          >
-            <View style={styles.kemiAvatarBubble}>
-              <Icon name="robot-outline" size={mscale(20)} color="#fff" />
-            </View>
-            <View>
-              <Text style={styles.kemiPillTitle}>Ask Kemi AI</Text>
-              <Text style={styles.kemiPillSub}>Your AI study assistant</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.plusFab} 
-            activeOpacity={0.85}
-            onPress={() => router.push('/kemiMasteryHub')}
-          >
-            <Icon name="plus" size={mscale(28)} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* ── Kemi Floating Action Button ─────────────────────────────── */}
+      <TouchableOpacity
+        style={styles.kemiFab}
+        activeOpacity={0.85}
+        onPress={() => router.push('/kemiMasteryHub')}
+      >
+        {/* <-- KEMI FAB ICON/IMAGE --> */}
+        <Image source={require('../../assets/images/ask-kemi-fab-icon.png')} style={{width: '100%', height: '100%', borderRadius: mscale(32)}} resizeMode="cover" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -723,14 +712,14 @@ const styles = StyleSheet.create({
     paddingBottom: hscale(4),
   },
   oppTitle: {
-    fontFamily: 'serif',
-    fontSize: mscale(15),
-    color: '#18181B',
+    fontFamily: 'Inter-Regular',
+    fontSize: mscale(13),
+    color: '#52525B',
     marginBottom: hscale(4),
   },
   oppSubtitle: {
-    fontFamily: 'serif',
-    fontSize: mscale(10),
+    fontFamily: 'Inter-Regular',
+    fontSize: mscale(11),
     color: '#71717A',
     marginBottom: hscale(8),
   },
@@ -741,7 +730,7 @@ const styles = StyleSheet.create({
     marginTop: hscale(4),
   },
   oppBtnText: {
-    fontFamily: 'serif',
+    fontFamily: 'Inter-Medium',
     fontSize: mscale(13),
     color: '#FFFFFF',
   },
@@ -866,72 +855,29 @@ const styles = StyleSheet.create({
   },
 
   // ── Floating Actions ──────────────────────────────────────────
-  fabContainer: {
+  kemiFab: {
     position: 'absolute',
     bottom: hscale(24),
-    left: screenHorizontalPadding,
     right: screenHorizontalPadding,
-  },
-  quickActionsLabel: {
-    fontFamily: 'Inter-Bold',
-    fontSize: mscale(10),
-    color: '#71717A',
-    letterSpacing: 1,
-    marginBottom: hscale(8),
-  },
-  fabRow: {
-    flexDirection: 'row',
+    width: mscale(64),
+    height: mscale(64),
+    borderRadius: mscale(32),
+    backgroundColor: '#36175E', // Outer dark circle color
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: wscale(10),
-  },
-  kemiPill: {
-    flex: 1,
-    backgroundColor: '#36175E',
-    borderRadius: mscale(40),
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: hscale(12),
-    paddingHorizontal: wscale(14),
-    borderWidth: 2,
-    borderColor: '#18181B',
+    borderWidth: 4,
+    borderColor: '#2b0c4a',
     ...Platform.select({
       ios: { shadowColor: '#36175E', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
-      android: { elevation: 6 },
-    }),
-  },
-  kemiAvatarBubble: {
-    width: mscale(38),
-    height: mscale(38),
-    borderRadius: mscale(19),
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: wscale(12),
-  },
-  kemiPillTitle: {
-    fontFamily: 'Inter-Bold',
-    fontSize: mscale(14),
-    color: '#FFFFFF',
-  },
-  kemiPillSub: {
-    fontFamily: 'Inter-Regular',
-    fontSize: mscale(11),
-    color: 'rgba(255,255,255,0.75)',
-    marginTop: 1,
-  },
-  plusFab: {
-    width: mscale(50),
-    height: mscale(50),
-    borderRadius: mscale(25),
-    backgroundColor: '#36175E',
-    borderWidth: 2,
-    borderColor: '#18181B',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } },
       android: { elevation: 8 },
     }),
+  },
+  kemiFabPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: mscale(32),
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
