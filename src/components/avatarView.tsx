@@ -30,7 +30,7 @@ export default function AvatarView({ size = 40 }: { size?: number }) {
         source={{ uri: profilePic }}
         style={[
           styles.avatarView,
-          { width: size, height: size, borderRadius: size / 2 },
+          { width: size, height: size, borderRadius: mscale(10) },
         ]}
       />
     );
@@ -40,7 +40,7 @@ export default function AvatarView({ size = 40 }: { size?: number }) {
     <View
       style={[
         styles.avatarView,
-        { width: size, height: size, borderRadius: size / 2 },
+        { width: size, height: size, borderRadius: mscale(10) },
       ]}
     >
       <Text style={styles.avatarViewText}>{userNamePrefix.toUpperCase()}</Text>
@@ -52,8 +52,8 @@ const styles = StyleSheet.create({
   avatarView: {
     width: wscale(40),
     height: hscale(40),
-    backgroundColor: colors.primary,
-    borderRadius: mscale(30),
+    backgroundColor: '#581C87', // Dark purple
+    borderRadius: mscale(10),
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
