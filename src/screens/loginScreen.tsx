@@ -108,7 +108,10 @@ export default function LoginScreen() {
           <BlurView intensity={80} tint="light" style={styles.glassCard}>
             {/* Logo */}
             <View style={styles.logoContainer}>
-              <Logo />
+              <Image 
+                source={require('../../assets/images/solva-icon-new.png')} 
+                style={{ width: 300, height: 100, resizeMode: 'contain' }} 
+              />
             </View>
 
             {/* Text Headers */}
@@ -181,9 +184,17 @@ export default function LoginScreen() {
           {/* Live Now Static Badge */}
           <View style={styles.liveBadge}>
             <View style={styles.avatarsWrapper}>
-              <Image source={{ uri: 'https://randomuser.me/api/portraits/women/44.jpg' }} style={[styles.miniAvatar, { zIndex: 3 }]} />
-              <Image source={{ uri: 'https://randomuser.me/api/portraits/men/46.jpg' }} style={[styles.miniAvatar, styles.avatarOverlap, { zIndex: 2 }]} />
-              <Image source={{ uri: 'https://randomuser.me/api/portraits/women/68.jpg' }} style={[styles.miniAvatar, styles.avatarOverlap, { zIndex: 1 }]} />
+              {/* <-- ADD YOUR 1ST AVATAR HERE --> */}
+              <Image source={require('../../assets/images/avatar-1.png')} style={[styles.miniAvatar, { zIndex: 3 }]} />
+              {/* <View style={[styles.miniAvatar, { zIndex: 3, backgroundColor: 'rgba(255,255,255,0.2)' }]} /> */}
+
+              {/* <-- ADD YOUR 2ND AVATAR HERE --> */}
+              <Image source={require('../../assets/images/avatar-2.png')} style={[styles.miniAvatar, styles.avatarOverlap, { zIndex: 2 }]} />
+              {/* <View style={[styles.miniAvatar, styles.avatarOverlap, { zIndex: 2, backgroundColor: 'rgba(255,255,255,0.2)' }]} /> */}
+
+              {/* <-- ADD YOUR 3RD AVATAR HERE --> */}
+              <Image source={require('../../assets/images/avatar-3.png')} style={[styles.miniAvatar, styles.avatarOverlap, { zIndex: 1 }]} />
+
               <View style={[styles.miniAvatar, styles.avatarOverlap, styles.avatarCountBadge, { zIndex: 0 }]}>
                 <Text style={styles.avatarCountText}>+1k</Text>
               </View>
@@ -311,14 +322,14 @@ const styles = StyleSheet.create({
 
   loginBtn: {
     width: "100%",
-    backgroundColor: "#5E17EB", 
+    backgroundColor: "#4800B2", 
     borderRadius: mscale(25),
     height: hscale(50), // Thinner button
     flexDirection: 'row',
     alignItems: "center",
     justifyContent: "center",
     marginBottom: hscale(24),
-    shadowColor: "#5E17EB",
+    shadowColor: "#4800B2",
     shadowOpacity: 0.3,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 6 },
