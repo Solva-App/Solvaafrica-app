@@ -150,8 +150,12 @@ export default function OnboardScreen() {
 
           {/* Bottom CTA */}
           <View style={styles.ctaBox}>
+            <View style={styles.ctaCircleTopRight} />
+            <View style={styles.ctaCircleBottomLeft} />
+            <View style={styles.ctaCircleBottomLeftFilled} />
+            
             <Text style={styles.ctaTitle}>Ready to start?</Text>
-            <Text style={styles.ctaSubtitle}>Your future as a skilled professional starts here.</Text>
+            <Text style={styles.ctaSubtitle}>Your future as a skilled{'\n'}professional starts here.</Text>
             <TouchableOpacity 
               style={styles.ctaButton}
               activeOpacity={0.8}
@@ -414,34 +418,64 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
   },
   ctaBox: {
-    backgroundColor: '#520A86',
-    borderRadius: 32,
-    padding: 40,
+    backgroundColor: '#3E04C3',
+    borderRadius: 28,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
     width: '100%',
     alignItems: 'center',
     marginTop: 16,
     marginBottom: 32,
-    elevation: 4,
-    shadowColor: '#520A86',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
+    elevation: 6,
+    shadowColor: '#3E04C3',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    overflow: 'hidden',
+  },
+  ctaCircleTopRight: {
+    position: 'absolute',
+    top: -50,
+    right: -40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  ctaCircleBottomLeft: {
+    position: 'absolute',
+    bottom: -80,
+    left: -60,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  ctaCircleBottomLeftFilled: {
+    position: 'absolute',
+    bottom: -100,
+    left: -80,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
   },
   ctaTitle: {
     color: '#FFFFFF',
-    fontSize: 24,
+    fontSize: 26,
     fontFamily: 'serif',
-    fontWeight: '700',
+    fontWeight: 'bold',
     marginBottom: 12,
     textAlign: 'center',
   },
   ctaSubtitle: {
-    color: '#D8B4FE',
+    color: '#E9D5FF', // Soft light purple
     fontSize: 14,
     textAlign: 'center',
     marginBottom: 32,
     fontFamily: 'Inter-Regular',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   ctaButton: {
     backgroundColor: '#FFFFFF',
@@ -452,7 +486,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   ctaButtonText: {
-    color: '#520A86',
+    color: '#3E04C3',
     fontSize: 14,
     fontFamily: 'Inter-Bold',
     letterSpacing: 0.5,
