@@ -82,9 +82,13 @@ export default function OnboardScreen() {
           {/* Social Proof Pill */}
           <View style={styles.socialProofCard}>
             <View style={styles.avatarsContainer}>
-              <Image source={{uri: 'https://ui-avatars.com/api/?name=A&background=e0e7ff&color=4f46e5'}} style={[styles.avatar, {zIndex: 3}]} />
-              <Image source={{uri: 'https://ui-avatars.com/api/?name=B&background=fce7f3&color=db2777'}} style={[styles.avatar, styles.avatarOverlap, {zIndex: 2}]} />
-              <Image source={{uri: 'https://ui-avatars.com/api/?name=C&background=dcfce7&color=16a34a'}} style={[styles.avatar, styles.avatarOverlap, {zIndex: 1}]} />
+              {/* <-- 1ST AVATAR --> */}
+              <Image source={require('../../assets/images/avatar-1.png')} style={[styles.avatar, {zIndex: 3}]} />
+              {/* <-- 2ND AVATAR --> */}
+              <Image source={require('../../assets/images/avatar-2.png')} style={[styles.avatar, styles.avatarOverlap, {zIndex: 2}]} />
+              {/* <-- 3RD AVATAR --> */}
+              <Image source={require('../../assets/images/avatar-3.png')} style={[styles.avatar, styles.avatarOverlap, {zIndex: 1}]} />
+              
               <View style={[styles.avatar, styles.avatarOverlap, styles.plusOneAvatar, {zIndex: 0}]}>
                 <Text style={styles.plusOneText}>+1k</Text>
               </View>
@@ -418,7 +422,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Regular',
   },
   ctaBox: {
-    backgroundColor: '#3E04C3',
+    backgroundColor: '#4800B2',
     borderRadius: 28,
     paddingVertical: 40,
     paddingHorizontal: 24,
@@ -427,7 +431,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 32,
     elevation: 6,
-    shadowColor: '#3E04C3',
+    shadowColor: '#4800B2',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.35,
     shadowRadius: 20,
@@ -486,7 +490,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   ctaButtonText: {
-    color: '#3E04C3',
+    color: '#4800B2',
     fontSize: 14,
     fontFamily: 'Inter-Bold',
     letterSpacing: 0.5,
