@@ -30,13 +30,14 @@ const QUICK_DO = [
   { id: '1', label: 'Learn with AI',    icon: 'star-four-points-outline', route: '/kemiMasteryHub' },
   { id: '2', label: 'Make Money',       icon: 'wallet-outline',            route: '/task' },
   { id: '3', label: 'Find\nScholarship', icon: 'school-outline',            route: '/scholarship' },
+  { id: '4', label: 'Seasons',           icon: 'trophy-outline',            route: '/seasons' },
 ];
 
 // ─── Academic tiles ───────────────────────────────────────────────────────────
 const ACADEMIC_TILES = [
   { label: 'STUDY\nMATERIALS',  icon: 'book-open-outline',    route: '/courses/courses', variant: 'white' as const },
   { label: 'UPLOAD\nMATERIALS', icon: 'cloud-upload-outline', route: '/upload',           variant: 'light' as const },
-  { label: 'LEARN NEW\nCOURSES',icon: 'school-outline',       route: '/courses/academy',  variant: 'dark'  as const },
+  { label: 'SCAVENGER\nHUNT',   icon: 'text-search',          route: '/seasons',          variant: 'dark'  as const },
 ];
 
 // ─── Gigs tiles ───────────────────────────────────────────────────────────────

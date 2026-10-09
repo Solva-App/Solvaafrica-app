@@ -1,3 +1,5 @@
-import ExploreTaskScreen from "../screens/Premiums/Task";
+import TaskHubScreen from "../screens/Premiums/TaskHub";
 
-export default ExploreTaskScreen;
+export default function TaskRoute() {
+  return <TaskHubScreen />;
+}
