@@ -1,3 +1,5 @@
-import TaskDetailsScreen from "../screens/taskDetails";
+import TaskDetailsScreen from "../screens/Premiums/TaskDetails";
 
-export default TaskDetailsScreen;
+export default function TaskDetailsRoute() {
+  return <TaskDetailsScreen />;
+}
