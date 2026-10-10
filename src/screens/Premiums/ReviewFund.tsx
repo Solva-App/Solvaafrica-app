@@ -78,6 +78,15 @@ export default function ReviewFundScreen() {
   const handleFund = async () => {
     setFunding(true);
     
+    let win: Window | null = null;
+    if (Platform.OS === 'web') {
+      win = window.open('', '_blank');
+      if (win) {
+        win.document.write('<p>Redirecting to secure payment...</p>');
+      }
+    }
+
+    
     try {
       if (!draftCampaign || !draftCampaign.title?.trim()) {
         throw new Error('Campaign details are missing. Please go back and fill in the form.');
@@ -154,8 +163,16 @@ export default function ReviewFundScreen() {
 
       // Step 2: Open Paystack link for user to complete payment
       if (paymentUrl) {
-        const { Linking } = require('react-native');
-        await Linking.openURL(paymentUrl);
+        if (Platform.OS === 'web') {
+          if (win) {
+            win.location.href = paymentUrl;
+          } else {
+            alert('Please allow popups for this site to complete payment.');
+          }
+        } else {
+          const { Linking } = require('react-native');
+          await Linking.openURL(paymentUrl);
+        }
 
         // Instead of buggy Alert.alert on web, show a custom beautiful modal
         setPaymentModal({
@@ -181,6 +198,9 @@ export default function ReviewFundScreen() {
 });
       }
     } catch (error: any) {
+      if (Platform.OS === 'web' && win) {
+        win.close();
+      }
       console.log('Funding failed:', error);
       
       const resData = error?.response?.data;

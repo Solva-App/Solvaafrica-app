@@ -510,7 +510,7 @@ export default function CreateTaskScreen() {
           <View style={styles.modalCard}>
             {/* Icon Header */}
             <View style={styles.modalIconWrap}>
-              <Feather name="alert-circle" size={28} color="#fff" />
+              <Feather name="alert-circle" size={24} color="#EF4444" />
             </View>
 
             <Text style={styles.modalTitle}>Missing Required Fields</Text>
@@ -857,34 +857,32 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
     fontSize: 14,
   },
-  // ── Validation Modal ────────────────────────────────────────────────────────
+  // ── Validation Modal ──────────────────────────────────────────────────────────
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.65)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
   },
   modalCard: {
-    backgroundColor: '#1a0533',
-    borderRadius: 20,
-    padding: 28,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 360,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(147,51,234,0.3)',
-    shadowColor: '#7c3aed',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   modalIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#7c3aed',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FEF2F2',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -892,24 +890,24 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontFamily: 'Inter-Bold',
     fontSize: 18,
-    color: '#fff',
+    color: '#111827',
     marginBottom: 6,
     textAlign: 'center',
   },
   modalSubtitle: {
     fontFamily: 'Inter-Regular',
-    fontSize: 13,
-    color: '#a78bfa',
+    fontSize: 14,
+    color: '#6B7280',
     marginBottom: 20,
     textAlign: 'center',
   },
   modalFieldList: {
     width: '100%',
-    backgroundColor: 'rgba(124,58,237,0.12)',
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    padding: 16,
     marginBottom: 24,
-    gap: 10,
+    gap: 12,
   },
   modalFieldRow: {
     flexDirection: 'row',
@@ -917,28 +915,26 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   modalBullet: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#a855f7',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#EF4444',
   },
   modalFieldText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 13,
-    color: '#e9d5ff',
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+    color: '#374151',
   },
   modalBtn: {
-    backgroundColor: '#7c3aed',
-    borderRadius: 12,
+    backgroundColor: '#111827',
+    borderRadius: 10,
     paddingVertical: 14,
-    paddingHorizontal: 40,
     width: '100%',
     alignItems: 'center',
   },
   modalBtnText: {
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'Inter-SemiBold',
     fontSize: 14,
     color: '#fff',
-    letterSpacing: 0.3,
   },
 });
