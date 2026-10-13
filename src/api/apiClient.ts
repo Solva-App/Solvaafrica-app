@@ -43,14 +43,16 @@ AUTH_API_CLIENT.interceptors.request.use(async (request) => {
     }
 
     const serializedUser = await AsyncStorage.getItem("User");
+    const storeUser = useAuthStore.getState().user;
+    const user = serializedUser ? JSON.parse(serializedUser) : storeUser;
+    const accessToken =
+      user?.tokens?.accessToken || storeUser?.tokens?.accessToken;
 
-    if (serializedUser) {
-      const user = JSON.parse(serializedUser);
-      const { accessToken } = user.tokens;
-
-      if (accessToken) {
-        request.headers["Authorization"] = `Bearer ${accessToken}`;
+    if (accessToken) {
+      if (typeof request.headers?.set === "function") {
+        request.headers.set("Authorization", `Bearer ${accessToken}`);
       }
+      request.headers["Authorization"] = `Bearer ${accessToken}`;
     }
 
     return request;
@@ -74,18 +76,23 @@ AUTH_API_CLIENT.interceptors.response.use(
     }
 
     const errorMessage = err?.response?.data?.message?.toLowerCase() || "";
-    const isAuthError = 
-      err?.response?.status === 401 || 
-      (err?.response?.status === 400 && (errorMessage.includes("token") || errorMessage.includes("authentication") || errorMessage.includes("unauthorized")));
+    const isAuthError =
+      err?.response?.status === 401 ||
+      (err?.response?.status === 400 &&
+        (errorMessage.includes("token") ||
+          errorMessage.includes("authentication") ||
+          errorMessage.includes("unauthorized")));
 
-    if (isAuthError && !originalRequest._retry) {
+    if (isAuthError && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
         const serializedUser = await AsyncStorage.getItem("User");
-        if (serializedUser) {
-          const user = JSON.parse(serializedUser);
-          const refreshToken = user.tokens.refreshToken;
+        const storeUser = useAuthStore.getState().user;
+        const user = serializedUser ? JSON.parse(serializedUser) : storeUser;
+        const refreshToken =
+          user?.tokens?.refreshToken || storeUser?.tokens?.refreshToken;
 
+        if (user && refreshToken) {
           const serverResponse = await axios.post(
             `${API_BASE_URL}/users/generate/token`,
             {
@@ -94,9 +101,20 @@ AUTH_API_CLIENT.interceptors.response.use(
           );
 
           const responseData = serverResponse.data;
+          const tokenPayload =
+            responseData?.data?.tokens || responseData?.data || responseData;
 
-          const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
-            responseData.data;
+          const newAccessToken =
+            typeof tokenPayload === "string"
+              ? tokenPayload
+              : tokenPayload?.accessToken;
+          const newRefreshToken =
+            (typeof tokenPayload === "object" && tokenPayload?.refreshToken) ||
+            refreshToken;
+
+          if (!newAccessToken) {
+            throw new Error("Failed to obtain a new access token");
+          }
 
           user.tokens = {
             accessToken: newAccessToken,
@@ -104,9 +122,20 @@ AUTH_API_CLIENT.interceptors.response.use(
           };
 
           await AsyncStorage.setItem("User", JSON.stringify(user));
+          useAuthStore.setState((state) => ({ ...state, user }));
 
           AUTH_API_CLIENT.defaults.headers.common["Authorization"] =
             `Bearer ${newAccessToken}`;
+          if (originalRequest.headers) {
+            if (typeof originalRequest.headers.set === "function") {
+              originalRequest.headers.set(
+                "Authorization",
+                `Bearer ${newAccessToken}`,
+              );
+            }
+            originalRequest.headers["Authorization"] =
+              `Bearer ${newAccessToken}`;
+          }
           console.log("Refreshed user", user);
 
           return AUTH_API_CLIENT(originalRequest);
