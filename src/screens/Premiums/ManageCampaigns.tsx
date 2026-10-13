@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -17,7 +19,62 @@ import { useTaskStore, Campaign } from '../../store/useTaskStore';
 export default function ManageCampaignsScreen() {
   const router = useRouter();
   const campaigns = useTaskStore(state => state.campaigns);
+  const setCampaigns = useTaskStore(state => state.setCampaigns);
   const deleteCampaign = useTaskStore(state => state.deleteCampaign);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadCompanyCampaigns = async () => {
+      try {
+        const { fetchCompanyTasksApi } = require('../../api/taskApi');
+        const data = await fetchCompanyTasksApi();
+        const rawList = Array.isArray(data)
+          ? data
+          : (data?.data?.tasks || data?.data || data?.tasks || []);
+
+        const mapped: Campaign[] = rawList.map((t: any, idx: number) => {
+          const id = String(t.id || t._id || t.taskId || idx);
+          const totalSpots = Number(t.totalSpots || t.totalSlots || t.spots || 0);
+          const usedSpots = Number(t.usedSpots || t.claimedSpots || 0);
+          const availableSlots = Math.max(0, totalSpots - usedSpots);
+          const poolAmount = Number(t.totalPool || t.poolAmount || 0);
+          const rewardAmount =
+            totalSpots > 0 ? Math.round(poolAmount / totalSpots) : Number(t.rewardAmount || 0);
+
+          return {
+            id,
+            title: t.title || 'Untitled Campaign',
+            companyName: t.sponsorName || t.companyName || t.brandName || 'Sponsor',
+            companyInitials: (t.sponsorName || t.companyName || 'SP').slice(0, 2).toUpperCase(),
+            rewardAmount,
+            poolAmount,
+            availableSlots: availableSlots || totalSpots,
+            totalSlots: totalSpots,
+            deadline: t.endDate || t.deadline || 'TBD',
+            category: t.type || t.category || 'General',
+            requirements: Array.isArray(t.requirements)
+              ? t.requirements
+              : [t.requirements || 'Standard requirements'],
+            guidelines: Array.isArray(t.guidelines)
+              ? t.guidelines
+              : [t.guidelines || 'Standard guidelines'],
+            type: t.type === 'video' || t.type === 'content' ? t.type : 'data',
+            overview: t.overview,
+            sponsorLogoUri: t.sponsorLogo || t.logo || t.companyLogo,
+            bannerImageUri: t.bannerImage || t.banner || t.image,
+          };
+        });
+
+        setCampaigns(mapped);
+      } catch (err) {
+        console.log('Failed to fetch company campaigns:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCompanyCampaigns();
+  }, []);
 
   const totalPool = campaigns.reduce((sum, c) => sum + (c.poolAmount || 0), 0);
 
@@ -54,7 +111,12 @@ export default function ManageCampaignsScreen() {
         </TouchableOpacity>
 
         {/* Campaign Cards */}
-        {campaigns.length === 0 ? (
+        {loading ? (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#610B99" />
+            <Text style={{ marginTop: 12, color: '#64748b', fontFamily: 'Inter-Medium' }}>Loading your campaigns...</Text>
+          </View>
+        ) : campaigns.length === 0 ? (
           <View style={styles.emptyState}>
             <Feather name="inbox" size={48} color="#cbd5e1" />
             <Text style={styles.emptyTitle}>No Active Campaigns</Text>
@@ -70,8 +132,12 @@ export default function ManageCampaignsScreen() {
               <View key={c.id} style={styles.card}>
                 <View style={styles.cardHeader}>
                   <View style={styles.companyRow}>
-                    <View style={[styles.companyLogo, { backgroundColor: graphicBg }]}>
-                      <Text style={styles.logoText}>{c.companyInitials}</Text>
+                    <View style={[styles.companyLogo, { backgroundColor: graphicBg, overflow: 'hidden' }]}>
+                      {c.sponsorLogoUri ? (
+                        <Image source={{ uri: c.sponsorLogoUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : (
+                        <Text style={styles.logoText}>{c.companyInitials}</Text>
+                      )}
                     </View>
                     <View>
                       <Text style={styles.companyName}>{c.companyName}</Text>
@@ -105,6 +171,9 @@ export default function ManageCampaignsScreen() {
                 </View>
 
                 <View style={[styles.graphicBox, { backgroundColor: graphicBg }]}>
+                  {c.bannerImageUri ? (
+                    <Image source={{ uri: c.bannerImageUri }} style={{ width: '100%', height: 90, borderRadius: 8, marginBottom: 8 }} resizeMode="cover" />
+                  ) : null}
                   <Text style={styles.graphicTextSmall}>
                     {c.title}
                   </Text>
