@@ -16,12 +16,20 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTaskStore } from '../../store/useTaskStore';
 import Toast from 'react-native-toast-message';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthStore } from '../../stores/authStore';
+
 export default function ReviewFundScreen() {
   const router = useRouter();
   const storeDraft = useTaskStore(state => state.draftCampaign);
   const addCampaign = useTaskStore(state => state.addCampaign);
   const [funding, setFunding] = useState(false);
-  const [paymentModal, setPaymentModal] = useState({ visible: false, taskId: "", reference: "" });
+  const [paymentModal, setPaymentModal] = useState({
+    visible: false,
+    taskId: '',
+    reference: '',
+    paymentUrl: '',
+  });
   const [verifying, setVerifying] = useState(false);
 
   // On web, Zustand can reset during navigation — read from sessionStorage as backup
@@ -55,59 +63,109 @@ export default function ReviewFundScreen() {
     </View>
   );
 
+  const handleOpenPaystackAgain = async () => {
+    if (!paymentModal.paymentUrl) return;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.open(paymentModal.paymentUrl, '_blank');
+    } else {
+      const { Linking } = require('react-native');
+      await Linking.openURL(paymentModal.paymentUrl);
+    }
+  };
 
   const handleVerifyPayment = async () => {
     setVerifying(true);
     try {
       const { activateTaskApi } = require('../../api/taskApi');
       await activateTaskApi(paymentModal.taskId, paymentModal.reference);
-      
+
       // Update store and navigate
       addCampaign({ ...(draftCampaign as any), id: paymentModal.taskId });
-      setPaymentModal({ visible: false, taskId: '', reference: '' });
-      Toast.show({ type: 'success', text1: '🚀 Campaign is Live!', text2: 'Task verified and activated successfully.', position: 'top', visibilityTime: 3000, onHide: () => router.push('/manage-campaigns') });
+      setPaymentModal({ visible: false, taskId: '', reference: '', paymentUrl: '' });
+      Toast.show({
+        type: 'success',
+        text1: 'Campaign is Live!',
+        text2: 'Task verified and activated successfully.',
+        position: 'top',
+        visibilityTime: 3000,
+        onHide: () => router.push('/manage-campaigns'),
+      });
     } catch (e: any) {
       const resData = e?.response?.data;
-      let backendMessage = resData?.message || e?.message || 'Please try again once payment is confirmed.';
-      Toast.show({ type: 'error', text1: 'Verification Failed', text2: backendMessage, position: 'top', visibilityTime: 4000 });
+      const backendMessage =
+        resData?.message || e?.message || 'Please complete the payment on Paystack first, then click Verify.';
+      Toast.show({
+        type: 'error',
+        text1: 'Verification Failed',
+        text2: backendMessage,
+        position: 'top',
+        visibilityTime: 4000,
+      });
     } finally {
       setVerifying(false);
     }
   };
 
   const handleFund = async () => {
+    if (!draftCampaign || !draftCampaign.title?.trim()) {
+      Toast.show({
+        type: 'error',
+        text1: 'Missing Campaign Details',
+        text2: 'Please go back and fill in the campaign details first.',
+        position: 'top',
+        visibilityTime: 4000,
+      });
+      return;
+    }
+
+    // Check authentication BEFORE opening any popup window
+    const serializedUser = await AsyncStorage.getItem('User');
+    const storeUser = useAuthStore.getState().user;
+    const parsedUser = serializedUser ? JSON.parse(serializedUser) : storeUser;
+    const accessToken = parsedUser?.tokens?.accessToken || storeUser?.tokens?.accessToken;
+
+    if (!accessToken) {
+      Toast.show({
+        type: 'error',
+        text1: 'Authentication Required',
+        text2: 'Your session has expired. Please log in again to fund your task.',
+        position: 'top',
+        visibilityTime: 4000,
+        onHide: () => router.push('/(auth)/login'),
+      });
+      return;
+    }
+
     setFunding(true);
-    
+
     let win: Window | null = null;
-    if (Platform.OS === 'web') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
       win = window.open('', '_blank');
       if (win) {
-        win.document.write('<p>Redirecting to secure payment...</p>');
+        win.document.write(
+          '<html><head><title>Redirecting to Paystack...</title></head><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#FAFAFA;color:#111827;"><div style="text-align:center;"><h3>Connecting to Paystack...</h3><p style="color:#6B7280;font-size:14px;">Please wait while we prepare your secure checkout.</p></div></body></html>'
+        );
+        win.document.close();
       }
     }
 
-    
     try {
-      if (!draftCampaign || !draftCampaign.title?.trim()) {
-        throw new Error('Campaign details are missing. Please go back and fill in the form.');
-      }
-
       // Build FormData for backend
       const formData = new FormData();
       formData.append('title', draftCampaign.title || '');
       formData.append('overview', draftCampaign.overview || 'Task Overview');
       formData.append('type', draftCampaign.category || 'General');
       formData.append('sponsorName', draftCampaign.companyName || 'Sponsor');
-      
+
       formData.append('totalPool', draftCampaign.poolAmount ? draftCampaign.poolAmount.toString() : '0');
       formData.append('totalSpots', draftCampaign.totalSlots ? draftCampaign.totalSlots.toString() : '0');
-      
+
       // Send arrays as joined strings, as per Hoppscotch screenshot examples
       formData.append('requirements', draftCampaign.requirements?.join(' ') || 'Standard requirements');
       formData.append('guidelines', draftCampaign.guidelines?.join(' ') || 'Standard guidelines');
       formData.append('selectionCriteria', draftCampaign.selectionCriteria?.join(' ') || 'Standard criteria');
       formData.append('howToSubmit', draftCampaign.howToSubmit?.join(' ') || 'Standard submission steps');
-      
+
       formData.append('startDate', draftCampaign.startDate || new Date().toISOString().split('T')[0]);
       formData.append('endDate', draftCampaign.endDate || draftCampaign.deadline || '2026-12-31');
 
@@ -115,19 +173,11 @@ export default function ReviewFundScreen() {
       const appendFile = async (key: string, uri: string, fallbackName: string) => {
         if (!uri) return;
         const filename = uri.split('/').pop() || fallbackName;
-        
+
         if (Platform.OS === 'web') {
-          if (uri.startsWith('data:')) {
-            // Convert base64 data URI to Blob for web FormData
-            const res = await fetch(uri);
-            const blob = await res.blob();
-            formData.append(key, blob, filename);
-          } else {
-            // It's a regular web URL or blob URL
-            const res = await fetch(uri);
-            const blob = await res.blob();
-            formData.append(key, blob, filename);
-          }
+          const res = await fetch(uri);
+          const blob = await res.blob();
+          formData.append(key, blob, filename);
         } else {
           // React Native native FormData syntax
           // @ts-ignore
@@ -138,7 +188,7 @@ export default function ReviewFundScreen() {
       if (draftCampaign.sponsorLogoUri) {
         await appendFile('sponsorLogo', draftCampaign.sponsorLogoUri, 'logo.jpg');
       }
-      
+
       if (draftCampaign.bannerImageUri) {
         await appendFile('bannerImage', draftCampaign.bannerImageUri, 'banner.jpg');
       }
@@ -149,78 +199,113 @@ export default function ReviewFundScreen() {
       console.log('✅ CREATE CAMPAIGN RESPONSE:', JSON.stringify(createResponse));
 
       // Extract taskId from backend response
-      let createdTaskId = createResponse?.data?.id || createResponse?.data?.taskId || createResponse?.taskId || createResponse?.id;
-      if (!createdTaskId) throw new Error(`Backend did not return a task ID. Response was: ${JSON.stringify(createResponse)}`);
-      
+      let createdTaskId =
+        createResponse?.data?.taskId ||
+        createResponse?.data?.id ||
+        createResponse?.taskId ||
+        createResponse?.id;
+      if (!createdTaskId) {
+        throw new Error(`Backend did not return a task ID. Response was: ${JSON.stringify(createResponse)}`);
+      }
+
       // Force it to a string to satisfy strict backend string validation
       createdTaskId = String(createdTaskId);
       console.log('✅ EXTRACTED TASK ID:', createdTaskId, typeof createdTaskId);
 
-      // Extract Paystack payment URL & reference returned by backend
-      const paymentUrl = createResponse?.data?.authorization_url || createResponse?.data?.paymentUrl || createResponse?.data?.paystackLink || createResponse?.authorization_url || null;
-      const paymentReference = createResponse?.data?.reference || createResponse?.reference || null;
+      // Extract Paystack payment URL (supports both camelCase authorizationUrl and snake_case authorization_url)
+      const paymentUrl =
+        createResponse?.data?.authorizationUrl ||
+        createResponse?.data?.authorization_url ||
+        createResponse?.data?.paymentUrl ||
+        createResponse?.data?.paystackLink ||
+        createResponse?.authorizationUrl ||
+        createResponse?.authorization_url ||
+        null;
+      const paymentReference =
+        createResponse?.data?.reference ||
+        createResponse?.data?.paymentReference ||
+        createResponse?.reference ||
+        null;
+      console.log('✅ PAYMENT URL:', paymentUrl);
       console.log('✅ PAYMENT REF:', paymentReference);
 
       // Step 2: Open Paystack link for user to complete payment
       if (paymentUrl) {
         if (Platform.OS === 'web') {
-          if (win) {
+          if (win && !win.closed) {
             win.location.href = paymentUrl;
-          } else {
-            alert('Please allow popups for this site to complete payment.');
+          } else if (typeof window !== 'undefined') {
+            window.open(paymentUrl, '_blank');
           }
         } else {
           const { Linking } = require('react-native');
           await Linking.openURL(paymentUrl);
         }
 
-        // Instead of buggy Alert.alert on web, show a custom beautiful modal
+        // Show clean verification modal so user can verify after paying on Paystack
         setPaymentModal({
           visible: true,
           taskId: createdTaskId,
-          reference: paymentReference
-        
-});
+          reference: paymentReference || '',
+          paymentUrl,
+        });
       } else {
+        if (Platform.OS === 'web' && win) {
+          try {
+            win.close();
+          } catch {}
+        }
         // No Paystack link — backend may have auto-activated or reference is already embedded
-        const refToUse = paymentReference || ('T' + Date.now());
+        const refToUse = paymentReference || 'T' + Date.now();
         await activateTaskApi(createdTaskId, refToUse);
-        addCampaign({ ...(draftCampaign as any), id: createdTaskId 
-});
+        addCampaign({ ...(draftCampaign as any), id: createdTaskId });
         Toast.show({
           type: 'success',
-          text1: '🚀 Campaign is Live!',
+          text1: 'Campaign is Live!',
           text2: 'Funds safely escrowed. Your task is visible to students.',
           position: 'top',
           visibilityTime: 3000,
-          onHide: () => router.push('/manage-campaigns')
-        
-});
+          onHide: () => router.push('/manage-campaigns'),
+        });
       }
     } catch (error: any) {
       if (Platform.OS === 'web' && win) {
-        win.close();
+        try {
+          win.close();
+        } catch {}
       }
       console.log('Funding failed:', error);
-      
+
       const resData = error?.response?.data;
       let backendMessage = resData?.message || error?.message || 'Failed to communicate with backend.';
-      
-      // If the backend returns a specific validation error object, append it so we can see exactly which fields failed
+
       if (resData?.error && typeof resData.error === 'object') {
         const errorDetails = JSON.stringify(resData.error);
         console.log('Validation Errors:', errorDetails);
         backendMessage = `${backendMessage}\n${errorDetails}`;
       }
 
+      const lowerMsg = backendMessage.toLowerCase();
+      const isAuthErr =
+        error?.response?.status === 401 ||
+        lowerMsg.includes('requires authentication') ||
+        lowerMsg.includes('token') ||
+        lowerMsg.includes('unauthorized');
+
       Toast.show({
         type: 'error',
-        text1: 'Funding Failed',
-        text2: backendMessage,
+        text1: isAuthErr ? 'Session Expired' : 'Funding Failed',
+        text2: isAuthErr
+          ? 'Please log in again to continue funding your task.'
+          : backendMessage,
         position: 'top',
-        visibilityTime: 6000,
-      
-});
+        visibilityTime: 5000,
+        onHide: () => {
+          if (isAuthErr) {
+            router.push('/(auth)/login');
+          }
+        },
+      });
     } finally {
       setFunding(false);
     }
@@ -310,25 +395,38 @@ export default function ReviewFundScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalIconWrap}>
-              <MaterialCommunityIcons name="credit-card-check-outline" size={32} color="#7c3aed" />
+              <Feather name="credit-card" size={24} color="#111827" />
             </View>
-            <Text style={styles.modalTitle}>Payment Sent?</Text>
+            <Text style={styles.modalTitle}>Complete Payment</Text>
             <Text style={styles.modalSubtitle}>
-              We opened a Paystack tab for you to securely complete your payment. 
-              Once the payment is successful in that tab, come back and click Verify below!
+              Complete your checkout in the Paystack tab, then click Verify below to activate your campaign.
             </Text>
-            
-            <TouchableOpacity 
-              style={[styles.modalBtn, verifying && { opacity: 0.7 }]} 
+
+            {!!paymentModal.paymentUrl && (
+              <TouchableOpacity
+                style={styles.modalSecondaryBtn}
+                onPress={handleOpenPaystackAgain}
+                disabled={verifying}
+              >
+                <Text style={styles.modalSecondaryBtnText}>Open Paystack Checkout</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[styles.modalBtn, verifying && { opacity: 0.7 }]}
               onPress={handleVerifyPayment}
               disabled={verifying}
             >
-              {verifying ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnText}>I've Completed the Payment</Text>}
+              {verifying ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.modalBtnText}>I've Completed the Payment</Text>
+              )}
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.modalCancelBtn} 
-              onPress={() => setPaymentModal({ visible: false, taskId: '', reference: '' })}
+
+            <TouchableOpacity
+              style={styles.modalCancelBtn}
+              onPress={() => setPaymentModal({ visible: false, taskId: '', reference: '', paymentUrl: '' })}
               disabled={verifying}
             >
               <Text style={styles.modalCancelBtnText}>Cancel</Text>
@@ -546,13 +644,86 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
     fontSize: 14,
   },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalCard: { backgroundColor: '#1a0533', padding: 24, borderRadius: 20, width: '100%', maxWidth: 400, alignItems: 'center', borderWidth: 1, borderColor: '#3b0764' },
-  modalIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(124, 58, 237, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 22, fontWeight: '700', color: '#fff', marginBottom: 8, textAlign: 'center' },
-  modalSubtitle: { fontSize: 14, color: '#94a3b8', textAlign: 'center', marginBottom: 24, lineHeight: 22 },
-  modalBtn: { backgroundColor: '#7c3aed', paddingVertical: 14, width: '100%', borderRadius: 12, alignItems: 'center', marginBottom: 12 },
-  modalBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  modalCancelBtn: { paddingVertical: 12, width: '100%', alignItems: 'center' },
-  modalCancelBtnText: { color: '#94a3b8', fontSize: 15, fontWeight: '500' }
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 380,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  modalIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 18,
+    color: '#111827',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  modalSecondaryBtn: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingVertical: 13,
+    width: '100%',
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  modalSecondaryBtnText: {
+    color: '#111827',
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+  },
+  modalBtn: {
+    backgroundColor: '#111827',
+    paddingVertical: 14,
+    width: '100%',
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalBtnText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+  },
+  modalCancelBtn: {
+    paddingVertical: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalCancelBtnText: {
+    color: '#6B7280',
+    fontFamily: 'Inter-Medium',
+    fontSize: 14,
+  },
 });

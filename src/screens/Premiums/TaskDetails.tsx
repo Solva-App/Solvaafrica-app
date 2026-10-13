@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Platform,
   TextInput,
+  Share,
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
