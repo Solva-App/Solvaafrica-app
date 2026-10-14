@@ -1,9 +1,16 @@
 import { AUTH_API_CLIENT } from './apiClient';
 
-export const fetchTasksApi = async () => {
+export const fetchPublicTasksApi = async () => {
+  const response = await AUTH_API_CLIENT.get('/tasks');
+  return response.data;
+};
+
+export const fetchCompanyTasksApi = async () => {
   const response = await AUTH_API_CLIENT.get('/tasks/company');
   return response.data;
 };
+
+export const fetchTasksApi = fetchPublicTasksApi;
 
 export const fetchTaskByIdApi = async (id: string) => {
   const response = await AUTH_API_CLIENT.get(`/tasks/${id}`);

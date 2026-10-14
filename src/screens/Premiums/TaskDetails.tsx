@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Platform,
   TextInput,
   Share,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -16,6 +18,7 @@ import { useTaskStore } from '../../store/useTaskStore';
 import Toast from 'react-native-toast-message';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
+import { normalizeTaskRecord, calcSpotsLeft, calcTimeLeft } from '../../utils/taskNormalization';
 
 export default function TaskDetailsScreen() {
   const router = useRouter();
@@ -23,7 +26,47 @@ export default function TaskDetailsScreen() {
   const campaigns = useTaskStore(state => state.campaigns);
   const addSubmission = useTaskStore(state => state.addSubmission);
 
-  const campaign = campaigns.find(c => c.id === id) || campaigns[0];
+  const storeCampaign = campaigns.find(c => c.id === id);
+  const [liveTask, setLiveTask] = useState<any>(null);
+  const [loading, setLoading] = useState(!storeCampaign);
+
+  useEffect(() => {
+    const loadTaskDetail = async () => {
+      if (!id) return;
+      try {
+        const { fetchTaskByIdApi } = require('../../api/taskApi');
+        const data = await fetchTaskByIdApi(String(id));
+        const taskObj = data?.data?.task || data?.task || data?.data || data;
+        if (taskObj) {
+          setLiveTask(taskObj);
+        }
+      } catch (err) {
+        console.log('Error fetching task details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadTaskDetail();
+  }, [id]);
+
+  const norm = liveTask ? normalizeTaskRecord(liveTask) : null;
+  const campaign = {
+    id: String(id || norm?.id || storeCampaign?.id || ''),
+    title: norm?.title || storeCampaign?.title || 'Campaign Details',
+    companyName: norm?.brandName || storeCampaign?.companyName || 'Sponsor',
+    companyInitials: (norm?.brandName || storeCampaign?.companyName || 'SP').slice(0, 2).toUpperCase(),
+    category: norm?.campaignType || storeCampaign?.category || 'General',
+    rewardAmount:
+      norm?.totalPool && norm?.totalSpots
+        ? Math.round(norm.totalPool / norm.totalSpots)
+        : storeCampaign?.rewardAmount || 150,
+    poolAmount: norm?.totalPool || storeCampaign?.poolAmount || 0,
+    deadline: norm?.endDate || storeCampaign?.deadline || 'Ongoing',
+    spotsText: norm ? calcSpotsLeft(norm.totalSpots, norm.usedSpots) : (storeCampaign?.availableSlots ? `${storeCampaign.availableSlots} spots left` : 'Spots available'),
+    overview: norm?.overview || storeCampaign?.overview || 'Review campaign requirements and submit proof of completion to claim your reward.',
+    bannerUri: norm?.bannerImage || storeCampaign?.bannerImageUri || null,
+    logoUri: norm?.sponsorLogo || storeCampaign?.sponsorLogoUri || null,
+  };
 
   // Submission form state
   const [rationale, setRationale] = useState('');
@@ -91,14 +134,10 @@ export default function TaskDetailsScreen() {
     setSubmitting(true);
 
     try {
-      // 1. Send it to the real backend
       const linkToSend = liveUrl.trim() || previewLink.trim() || 'uploaded-file-placeholder';
-      // We import it dynamically here to avoid circular dep issues in this quick patch, 
-      // but ideally it goes at the top.
       const { submitTaskApi } = require('../../api/taskApi');
       await submitTaskApi(campaign.id, linkToSend);
-      
-      // 2. Also save it to the local store so the UI updates instantly
+
       addSubmission({
         id: Math.random().toString(36).substr(2, 9),
         campaignId: campaign.id,
@@ -112,7 +151,7 @@ export default function TaskDetailsScreen() {
       Toast.show({
         type: 'success',
         text1: '🚀 Task Submitted!',
-        text2: 'Your submission is under review. You\'ll be notified when approved.',
+        text2: "Your submission is under review. You'll be notified when approved.",
         position: 'top',
         visibilityTime: 3000,
         onHide: () => router.back(),
@@ -131,6 +170,17 @@ export default function TaskDetailsScreen() {
     }
   };
 
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color="#610B99" />
+        <Text style={{ marginTop: 12, color: '#64748b', fontFamily: 'Inter-Medium' }}>
+          Loading campaign details...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topNav}>
@@ -138,15 +188,24 @@ export default function TaskDetailsScreen() {
           <Feather name="chevron-left" size={18} color="#0f172a" />
           <Text style={styles.backBtnText}>Task Details</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.circleBtn} onPress={() => Share.share({ message: `Check out this task on Solva: ${campaign?.title}` })}>
+        <TouchableOpacity
+          style={styles.circleBtn}
+          onPress={() => Share.share({ message: `Check out this task on Solva: ${campaign.title}` })}
+        >
           <Feather name="share" size={16} color="#0f172a" />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
         {/* Hero Section */}
         <View style={styles.heroBanner}>
+          {campaign.bannerUri ? (
+            <Image
+              source={{ uri: campaign.bannerUri }}
+              style={StyleSheet.absoluteFillObject}
+              resizeMode="cover"
+            />
+          ) : null}
           <View style={styles.heroOverlay}>
             <View style={styles.heroTopRow}>
               <View style={styles.aiDataPill}>
@@ -154,8 +213,16 @@ export default function TaskDetailsScreen() {
               </View>
             </View>
             <View style={styles.heroBottomRow}>
-              <View style={styles.sponsorAvatar}>
-                <Text style={styles.sponsorAvatarText}>{campaign.companyInitials}</Text>
+              <View style={[styles.sponsorAvatar, { overflow: 'hidden' }]}>
+                {campaign.logoUri ? (
+                  <Image
+                    source={{ uri: campaign.logoUri }}
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Text style={styles.sponsorAvatarText}>{campaign.companyInitials}</Text>
+                )}
               </View>
               <View>
                 <Text style={styles.sponsorName}>{campaign.companyName}</Text>
@@ -190,20 +257,22 @@ export default function TaskDetailsScreen() {
               <Text style={styles.statBoxLabel}>Availability</Text>
               <View style={styles.statBoxValueRow}>
                 <Feather name="users" size={12} color="#0f172a" style={{ marginRight: 4 }} />
-                <Text style={styles.statBoxValue}>64 left</Text>
+                <Text style={styles.statBoxValue}>{campaign.spotsText}</Text>
               </View>
             </View>
             <View style={styles.statBox}>
               <Text style={styles.statBoxLabel}>Deadline</Text>
               <View style={styles.statBoxValueRow}>
                 <Feather name="calendar" size={12} color="#dc2626" style={{ marginRight: 4 }} />
-                <Text style={styles.statBoxValue}>Oct 12, 2026</Text>
+                <Text style={styles.statBoxValue}>{campaign.deadline}</Text>
               </View>
             </View>
             <View style={styles.statBox}>
               <Text style={styles.statBoxLabel}>Reward Pool</Text>
               <View style={styles.statBoxValueRow}>
-                <Text style={[styles.statBoxValue, { color: '#4800B2' }]}>₦250,000</Text>
+                <Text style={[styles.statBoxValue, { color: '#4800B2' }]}>
+                  ₦{campaign.poolAmount.toLocaleString()}
+                </Text>
               </View>
             </View>
           </View>
@@ -212,12 +281,7 @@ export default function TaskDetailsScreen() {
         {/* Task Overview */}
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionLabel}>TASK OVERVIEW</Text>
-          <Text style={styles.overviewText}>
-            Help benchmark cutting-edge LLMs against regional Nigerian colloquial speech. You will review <Text style={{fontFamily: 'Inter-Bold', color: '#0f172a'}}>20 paired model completions</Text> in Nigerian English, Pidgin, and Yoruba dialects for cultural nuance, natural grammar, tone authenticity, and safety.
-          </Text>
-          <Text style={styles.overviewText}>
-            High-accuracy contributors are automatically shortlisted for recurring higher-tier NLP evaluation pools paying up to ₦3,500.
-          </Text>
+          <Text style={styles.overviewText}>{campaign.overview}</Text>
         </View>
 
         {/* Requirements */}

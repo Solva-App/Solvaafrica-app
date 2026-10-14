@@ -8,31 +8,65 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useTaskStore } from '../../store/useTaskStore';
+import { normalizeTaskRecord, calcSpotsLeft, calcTimeLeft } from '../../utils/taskNormalization';
 
 export default function ExploreTasksScreen() {
   const router = useRouter();
-  const campaigns = useTaskStore(state => state.campaigns);
-  
   const [liveTasks, setLiveTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedFilter, setSelectedFilter] = useState('All');
 
   useEffect(() => {
     const loadTasks = async () => {
       try {
-        const { fetchTasksApi } = require('../../api/taskApi');
-        const data = await fetchTasksApi();
+        const { fetchPublicTasksApi } = require('../../api/taskApi');
+        const data = await fetchPublicTasksApi();
         // Handle various common API response structures
-        const tasksArray = Array.isArray(data) ? data : (data?.data || data?.tasks || data?.results || []);
-        
-        if (tasksArray.length > 0) {
-          setLiveTasks(tasksArray);
-        }
+        const rawList = Array.isArray(data)
+          ? data
+          : (data?.data?.tasks || data?.data || data?.tasks || data?.results || []);
+
+        // Filter out drafts / tasks where payment was NOT made
+        const activeOnly = rawList.filter((t: any) => {
+          if (t.status) {
+            const s = String(t.status).toLowerCase();
+            if (s === 'draft' || s === 'unpaid' || s === 'pending_payment' || s === 'cancelled') {
+              return false;
+            }
+          }
+          if (t.isPaid === false || t.isActive === false) return false;
+          return true;
+        });
+
+        const normalized = activeOnly.map((t: any, index: number) => {
+          const norm = normalizeTaskRecord(t);
+          const totalSpots = norm.totalSpots || 100;
+          const poolAmount = norm.totalPool || 0;
+          const rewardAmount =
+            totalSpots > 0 ? Math.round(poolAmount / totalSpots) : Number(t.rewardAmount || 150);
+
+          return {
+            id: norm.id || String(t.id || index),
+            brandName: norm.brandName || 'Solva Sponsor',
+            campaignType: norm.campaignType || 'AI / DATA',
+            title: norm.title || 'Untitled Campaign',
+            overview: norm.overview || 'Complete tasks and earn instant rewards.',
+            timeLeft: calcTimeLeft(norm.endDate),
+            spotsLeft: calcSpotsLeft(norm.totalSpots, norm.usedSpots),
+            totalPool: poolAmount,
+            rewardAmount: rewardAmount || 150,
+            bannerUri: norm.bannerImage || null,
+            logoUri: norm.sponsorLogo || null,
+          };
+        });
+
+        setLiveTasks(normalized);
       } catch (error) {
-        console.log("Failed to fetch live tasks:", error);
+        console.log('Failed to fetch live tasks:', error);
       } finally {
         setLoading(false);
       }
@@ -40,93 +74,113 @@ export default function ExploreTasksScreen() {
     loadTasks();
   }, []);
 
-  const displayTasks = liveTasks;
+  const totalPoolSum = liveTasks.reduce((sum, t) => sum + (t.totalPool || 0), 0);
 
-  const renderFilter = (text: string, isActive = false) => (
-    <TouchableOpacity style={[styles.filterPill, isActive && styles.filterPillActive]}>
-      <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>{text}</Text>
-    </TouchableOpacity>
-  );
+  const filteredTasks = liveTasks.filter((t) => {
+    if (selectedFilter === 'All') return true;
+    if (selectedFilter === 'AI & Data') {
+      return (
+        t.campaignType?.toLowerCase().includes('ai') ||
+        t.campaignType?.toLowerCase().includes('data')
+      );
+    }
+    if (selectedFilter === 'Video / Reels') {
+      return (
+        t.campaignType?.toLowerCase().includes('video') ||
+        t.campaignType?.toLowerCase().includes('reel') ||
+        t.campaignType?.toLowerCase().includes('content')
+      );
+    }
+    if (selectedFilter === 'Marketing') {
+      return (
+        t.campaignType?.toLowerCase().includes('marketing') ||
+        t.campaignType?.toLowerCase().includes('survey')
+      );
+    }
+    return true;
+  });
 
-  const renderTaskCard = (
-    id: string,
-    company: string,
-    categoryTag: string | null,
-    subTags: { text: string; type: 'green' | 'purple' | 'outline' | 'solid-green' | 'trending' }[],
-    price: string,
-    priceSub: string,
-    title: string,
-    desc: string,
-    dueDate: string,
-    slots: string,
-    isUrgent = false
-  ) => (
-    <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={() => router.push({ pathname: '/task-details', params: { id: id } })}>
-      {/* Header Row */}
+  const renderFilter = (label: string, count: number, filterKey: string) => {
+    const isActive = selectedFilter === filterKey;
+    return (
+      <TouchableOpacity
+        key={filterKey}
+        style={[styles.filterPill, isActive && styles.filterPillActive]}
+        onPress={() => setSelectedFilter(filterKey)}
+      >
+        <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+          {label} ({count})
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderTaskCard = (item: any) => (
+    <TouchableOpacity
+      key={item.id}
+      style={styles.card}
+      activeOpacity={0.8}
+      onPress={() => router.push({ pathname: '/task-details', params: { id: item.id } })}
+    >
+      {/* Header Row: Sponsor Logo + Name + Category Tag */}
       <View style={styles.cardHeader}>
         <View style={styles.companyRow}>
-          <Feather name="box" size={12} color="#610B99" style={{ marginRight: 6 }} />
-          <Text style={styles.companyName}>{company}</Text>
+          {item.logoUri ? (
+            <Image source={{ uri: item.logoUri }} style={styles.companyLogoImg} resizeMode="cover" />
+          ) : (
+            <View style={styles.logoPlaceholderWrap}>
+              <Feather name="box" size={13} color="#610B99" />
+            </View>
+          )}
+          <Text style={styles.companyName}>{item.brandName}</Text>
         </View>
-        {categoryTag && (
+        {item.campaignType && (
           <View style={styles.categoryTag}>
-            <Text style={styles.categoryTagText}>{categoryTag}</Text>
+            <Text style={styles.categoryTagText}>{item.campaignType}</Text>
           </View>
         )}
       </View>
 
+      {/* Optional Banner Image */}
+      {item.bannerUri ? (
+        <View style={styles.cardBannerWrap}>
+          <Image source={{ uri: item.bannerUri }} style={styles.cardBannerImg} resizeMode="cover" />
+        </View>
+      ) : null}
+
       {/* Tags & Price Row */}
       <View style={styles.tagsPriceRow}>
         <View style={styles.subTagsRow}>
-          {subTags.map((tag, idx) => {
-            let tagStyle = styles.tagOutline;
-            let textStyle = styles.tagOutlineText;
-            let icon = null;
-
-            if (tag.type === 'green') {
-              tagStyle = styles.tagGreen;
-              textStyle = styles.tagGreenText;
-              icon = <Feather name="check-circle" size={10} color="#10b981" style={{ marginRight: 4 }} />;
-            } else if (tag.type === 'purple') {
-              tagStyle = styles.tagPurple;
-              textStyle = styles.tagPurpleText;
-              icon = <Feather name="zap" size={10} color="#610B99" style={{ marginRight: 4 }} />;
-            } else if (tag.type === 'solid-green') {
-              tagStyle = styles.tagSolidGreen;
-              textStyle = styles.tagSolidGreenText;
-            } else if (tag.type === 'trending') {
-              tagStyle = styles.tagOutlineGreen;
-              textStyle = styles.tagOutlineGreenText;
-              icon = <Feather name="trending-up" size={10} color="#10b981" style={{ marginRight: 4 }} />;
-            }
-
-            return (
-              <View key={idx} style={[styles.subTag, tagStyle]}>
-                {icon}
-                <Text style={[styles.subTagText, textStyle]}>{tag.text}</Text>
-              </View>
-            );
-          })}
+          <View style={[styles.subTag, styles.tagGreen]}>
+            <Feather name="check-circle" size={10} color="#10b981" style={{ marginRight: 4 }} />
+            <Text style={[styles.subTagText, styles.tagGreenText]}>Verified Live</Text>
+          </View>
+          <View style={[styles.subTag, styles.tagPurple]}>
+            <Feather name="zap" size={10} color="#610B99" style={{ marginRight: 4 }} />
+            <Text style={[styles.subTagText, styles.tagPurpleText]}>Instant Escrow</Text>
+          </View>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.priceText}>{price}</Text>
-          <Text style={styles.priceSubText}>{priceSub}</Text>
+          <Text style={styles.priceText}>₦{item.rewardAmount}</Text>
+          <Text style={styles.priceSubText}>per task</Text>
         </View>
       </View>
 
-      <Text style={styles.taskTitle}>{title}</Text>
-      <Text style={styles.taskDesc} numberOfLines={2}>{desc}</Text>
+      <Text style={styles.taskTitle}>{item.title}</Text>
+      <Text style={styles.taskDesc} numberOfLines={2}>
+        {item.overview}
+      </Text>
 
       {/* Footer */}
       <View style={styles.footerRow}>
         <View style={styles.footerInfoRow}>
           <View style={styles.footerItem}>
             <Feather name="calendar" size={12} color="#94a3b8" style={{ marginRight: 4 }} />
-            <Text style={styles.footerText}>{dueDate}</Text>
+            <Text style={styles.footerText}>{item.timeLeft || 'Ongoing'}</Text>
           </View>
           <View style={styles.footerItem}>
-            <Feather name="users" size={12} color={isUrgent ? '#ef4444' : '#3b82f6'} style={{ marginRight: 4 }} />
-            <Text style={[styles.footerText, isUrgent && { color: '#ef4444' }]}>{slots}</Text>
+            <Feather name="users" size={12} color="#3b82f6" style={{ marginRight: 4 }} />
+            <Text style={styles.footerText}>{item.spotsLeft}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.arrowBtn}>
@@ -139,7 +193,6 @@ export default function ExploreTasksScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
         {/* Top Header */}
         <View style={styles.topNav}>
           <View style={styles.breadcrumbRow}>
@@ -163,7 +216,7 @@ export default function ExploreTasksScreen() {
             </View>
             <View>
               <Text style={styles.poolLabel}>Total Pool</Text>
-              <Text style={styles.poolValue}>₦285,000</Text>
+              <Text style={styles.poolValue}>₦{totalPoolSum.toLocaleString()}</Text>
             </View>
           </View>
           <View style={styles.livePayoutPill}>
@@ -173,46 +226,65 @@ export default function ExploreTasksScreen() {
         </View>
 
         {/* Filters */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll} style={{ marginBottom: 20 }}>
-          {renderFilter('All (18)', true)}
-          {renderFilter('AI & Data (6)')}
-          {renderFilter('Video / Reels (4)')}
-          {renderFilter('Audio / ...')}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtersScroll}
+          style={{ marginBottom: 20 }}
+        >
+          {renderFilter('All', liveTasks.length, 'All')}
+          {renderFilter(
+            'AI & Data',
+            liveTasks.filter(
+              (t) =>
+                t.campaignType?.toLowerCase().includes('ai') ||
+                t.campaignType?.toLowerCase().includes('data')
+            ).length,
+            'AI & Data'
+          )}
+          {renderFilter(
+            'Video / Reels',
+            liveTasks.filter(
+              (t) =>
+                t.campaignType?.toLowerCase().includes('video') ||
+                t.campaignType?.toLowerCase().includes('reel') ||
+                t.campaignType?.toLowerCase().includes('content')
+            ).length,
+            'Video / Reels'
+          )}
+          {renderFilter(
+            'Marketing',
+            liveTasks.filter(
+              (t) =>
+                t.campaignType?.toLowerCase().includes('marketing') ||
+                t.campaignType?.toLowerCase().includes('survey')
+            ).length,
+            'Marketing'
+          )}
         </ScrollView>
 
         {/* Task Cards */}
         {loading ? (
           <View style={{ marginTop: 40, alignItems: 'center' }}>
             <ActivityIndicator size="large" color="#610B99" />
-            <Text style={{ marginTop: 12, color: '#64748b', fontFamily: 'Inter-Medium' }}>Loading tasks...</Text>
+            <Text style={{ marginTop: 12, color: '#64748b', fontFamily: 'Inter-Medium' }}>
+              Loading verified tasks...
+            </Text>
+          </View>
+        ) : filteredTasks.length === 0 ? (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <Feather name="inbox" size={48} color="#cbd5e1" style={{ marginBottom: 12 }} />
+            <Text style={{ fontFamily: 'Inter-SemiBold', fontSize: 16, color: '#0f172a' }}>
+              No Active Bounties Right Now
+            </Text>
+            <Text style={{ color: '#64748b', textAlign: 'center', marginTop: 6, fontSize: 13 }}>
+              Check back soon as new verified campaigns launch regularly.
+            </Text>
           </View>
         ) : (
-          displayTasks.map((c, i) => {
-            // Flexible property mapping to accommodate varying backend responses
-            const id = c.id || c._id || `task-${i}`;
-            const company = c.companyName || c.company || c.sponsor || 'Solva Sponsor';
-            const category = c.category || c.type || 'Task';
-            const price = `₦${c.rewardAmount || c.price || c.reward || 150}`;
-            const title = c.title || c.name || 'Untitled Task';
-            const desc = (c.requirements && c.requirements[0]) || c.description || c.desc || 'No description provided.';
-            const dueDate = c.deadline ? `Due ${c.deadline}` : 'No deadline';
-            const slotsLeft = `${c.availableSlots || c.slots || c.capacity || 100} slots left`;
-
-            return renderTaskCard(
-              id,
-              company,
-              category,
-              [{ text: 'New', type: 'green' }],
-              price,
-              'per task',
-              title,
-              desc,
-              dueDate,
-              slotsLeft
-            );
-          })
+          filteredTasks.map((item) => renderTaskCard(item))
         )}
-        
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -361,11 +433,38 @@ const styles = StyleSheet.create({
   companyRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  companyLogoImg: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: '#F3EEF9',
+  },
+  logoPlaceholderWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: '#F3EEF9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   companyName: {
     fontFamily: 'Inter-Medium',
     fontSize: 12,
     color: '#475569',
+  },
+  cardBannerWrap: {
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F8FAFC',
+    marginBottom: 12,
+  },
+  cardBannerImg: {
+    width: '100%',
+    height: '100%',
   },
   categoryTag: {
     backgroundColor: '#F3E8FF',
