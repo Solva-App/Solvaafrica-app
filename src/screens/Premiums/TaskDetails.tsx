@@ -19,6 +19,7 @@ import Toast from 'react-native-toast-message';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { normalizeTaskRecord, calcSpotsLeft, calcTimeLeft } from '../../utils/taskNormalization';
+import { fetchTaskByIdApi, submitTaskApi } from '../../api/taskApi';
 
 export default function TaskDetailsScreen() {
   const router = useRouter();
@@ -34,7 +35,6 @@ export default function TaskDetailsScreen() {
     const loadTaskDetail = async () => {
       if (!id) return;
       try {
-        const { fetchTaskByIdApi } = require('../../api/taskApi');
         const data = await fetchTaskByIdApi(String(id));
         const taskObj = data?.data?.task || data?.task || data?.data || data;
         if (taskObj) {
@@ -135,7 +135,6 @@ export default function TaskDetailsScreen() {
 
     try {
       const linkToSend = liveUrl.trim() || previewLink.trim() || 'uploaded-file-placeholder';
-      const { submitTaskApi } = require('../../api/taskApi');
       await submitTaskApi(campaign.id, linkToSend);
 
       addSubmission({

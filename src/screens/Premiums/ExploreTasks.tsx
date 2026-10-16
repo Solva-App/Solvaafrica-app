@@ -13,6 +13,7 @@ import {
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { normalizeTaskRecord, calcSpotsLeft, calcTimeLeft } from '../../utils/taskNormalization';
+import { fetchPublicTasksApi } from '../../api/taskApi';
 
 export default function ExploreTasksScreen() {
   const router = useRouter();
@@ -23,7 +24,6 @@ export default function ExploreTasksScreen() {
   useEffect(() => {
     const loadTasks = async () => {
       try {
-        const { fetchPublicTasksApi } = require('../../api/taskApi');
         const data = await fetchPublicTasksApi();
         // Handle various common API response structures
         const rawList = Array.isArray(data)
@@ -183,7 +183,11 @@ export default function ExploreTasksScreen() {
             <Text style={styles.footerText}>{item.spotsLeft}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.arrowBtn}>
+        <TouchableOpacity
+          style={styles.arrowBtn}
+          activeOpacity={0.7}
+          onPress={() => router.push({ pathname: '/task-details', params: { id: String(item.id) } })}
+        >
           <Feather name="arrow-right" size={16} color="#610B99" />
         </TouchableOpacity>
       </View>
@@ -423,6 +427,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#F1F5F9',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   cardHeader: {
     flexDirection: 'row',
@@ -571,5 +576,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
 });
