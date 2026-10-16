@@ -11,6 +11,8 @@ import {
   Share,
   ActivityIndicator,
   Image,
+  Modal,
+  Linking,
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -68,6 +70,29 @@ export default function TaskDetailsScreen() {
     logoUri: norm?.sponsorLogo || storeCampaign?.sponsorLogoUri || null,
   };
 
+  // Asset state & preview modal
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const assetUrl =
+    liveTask?.datasetUrl ||
+    liveTask?.dataset ||
+    liveTask?.file ||
+    liveTask?.attachment ||
+    liveTask?.csvFile ||
+    liveTask?.assetUrl ||
+    null;
+  const assetName =
+    liveTask?.datasetName ||
+    (assetUrl && typeof assetUrl === 'string' ? assetUrl.split('/').pop() : null) ||
+    'dialect_eval_sample_v2.json';
+
+  const handlePreviewAsset = () => {
+    if (assetUrl && typeof assetUrl === 'string' && (assetUrl.startsWith('http://') || assetUrl.startsWith('https://'))) {
+      Linking.openURL(assetUrl);
+    } else {
+      setShowPreviewModal(true);
+    }
+  };
+
   // Submission form state
   const [rationale, setRationale] = useState('');
   const [previewLink, setPreviewLink] = useState('');
@@ -76,6 +101,48 @@ export default function TaskDetailsScreen() {
   // Upload state
   const [proofFileName, setProofFileName] = useState<string | null>(null);
   const [videoFileName, setVideoFileName] = useState<string | null>(null);
+
+  const handleSubmitDraft = async () => {
+    if (!previewLink.trim() && !videoFileName) {
+      Toast.show({
+        type: 'error',
+        text1: 'Draft Details Needed',
+        text2: 'Please paste a private preview link or select a video draft first.',
+        position: 'top',
+      });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const linkToSend = previewLink.trim() || videoFileName || 'video-draft-uploaded';
+      await submitTaskApi(campaign.id, linkToSend);
+      addSubmission({
+        id: Math.random().toString(36).substr(2, 9),
+        campaignId: campaign.id,
+        studentName: 'Guest Student',
+        studentInitials: 'GS',
+        status: 'Pending',
+        submittedAt: 'Just now',
+        accuracyScore: undefined,
+      });
+      Toast.show({
+        type: 'success',
+        text1: '🚀 Draft Submitted!',
+        text2: 'Your draft has been submitted for pre-approval. You will be notified once reviewed.',
+        position: 'top',
+        visibilityTime: 3500,
+      });
+    } catch (e: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Draft Submission Failed',
+        text2: e?.message || 'Could not submit draft to backend.',
+        position: 'top',
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handlePickDocument = async () => {
     try {
@@ -420,11 +487,11 @@ export default function TaskDetailsScreen() {
           <View style={styles.assetIconBox}>
             <Feather name="file" size={20} color="#610B99" />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.assetTitle}>dialect_eval_sample_v2.json</Text>
-            <Text style={styles.assetSub}>18 KB • Reference Schema</Text>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text style={styles.assetTitle} numberOfLines={1}>{assetName}</Text>
+            <Text style={styles.assetSub}>Reference Schema &amp; Instructions</Text>
           </View>
-          <TouchableOpacity style={styles.previewBtn}>
+          <TouchableOpacity style={styles.previewBtn} activeOpacity={0.7} onPress={handlePreviewAsset}>
             <Text style={styles.previewBtnText}>Preview</Text>
           </TouchableOpacity>
         </View>
@@ -526,9 +593,14 @@ export default function TaskDetailsScreen() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.submitDraftBtn}>
+          <TouchableOpacity
+            style={[styles.submitDraftBtn, submitting && { opacity: 0.7 }]}
+            activeOpacity={0.8}
+            onPress={handleSubmitDraft}
+            disabled={submitting}
+          >
             <Feather name="send" size={14} color="#fff" style={{ marginRight: 8 }} />
-            <Text style={styles.submitDraftBtnText}>Submit Draft for Pre-Approval</Text>
+            <Text style={styles.submitDraftBtnText}>{submitting ? 'Submitting...' : 'Submit Draft for Pre-Approval'}</Text>
           </TouchableOpacity>
 
           {/* Stage 2 */}
@@ -575,6 +647,56 @@ export default function TaskDetailsScreen() {
           <Text style={styles.submitTaskBtnText}>{submitting ? 'Submitting...' : 'Submit Task'}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Asset Preview Modal */}
+      <Modal visible={showPreviewModal} transparent animationType="fade" onRequestClose={() => setShowPreviewModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+                <Feather name="file-text" size={18} color="#610B99" style={{ marginRight: 8 }} />
+                <Text style={styles.modalTitle} numberOfLines={1}>{assetName}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowPreviewModal(false)} style={styles.modalCloseBtn}>
+                <Feather name="x" size={18} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSub}>Reference Asset Schema &amp; Instructions</Text>
+
+            <View style={styles.codeBox}>
+              <Text style={styles.codeText}>
+{`{
+  "task": "${campaign.title}",
+  "sponsor": "${campaign.companyName}",
+  "category": "${campaign.category}",
+  "reward": "₦${campaign.rewardAmount}",
+  "schema_version": "v2.1",
+  "instructions": "Follow all guidelines carefully and submit authentic verification link or proof."
+}`}
+              </Text>
+            </View>
+
+            <View style={styles.modalActionRow}>
+              {assetUrl && typeof assetUrl === 'string' && (
+                <TouchableOpacity
+                  style={styles.modalDownloadBtn}
+                  onPress={() => Linking.openURL(assetUrl)}
+                >
+                  <Feather name="download" size={14} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={styles.modalDownloadBtnText}>Download</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.modalDismissBtn}
+                onPress={() => setShowPreviewModal(false)}
+              >
+                <Text style={styles.modalDismissBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -974,6 +1096,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
   previewBtnText: {
     fontFamily: 'Inter-Bold',
@@ -1201,5 +1324,91 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
     fontSize: 14,
     color: '#fff',
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 520,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  modalTitle: {
+    fontFamily: 'Inter-Bold',
+    fontSize: 16,
+    color: '#0f172a',
+  },
+  modalCloseBtn: {
+    padding: 6,
+    borderRadius: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  modalSub: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 16,
+  },
+  codeBox: {
+    backgroundColor: '#0f172a',
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 20,
+  },
+  codeText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    color: '#38bdf8',
+    lineHeight: 18,
+  },
+  modalActionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+  },
+  modalDownloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#610B99',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  modalDownloadBtnText: {
+    color: '#fff',
+    fontFamily: 'Inter-Bold',
+    fontSize: 13,
+  },
+  modalDismissBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  modalDismissBtnText: {
+    color: '#475569',
+    fontFamily: 'Inter-Medium',
+    fontSize: 13,
   },
 });
