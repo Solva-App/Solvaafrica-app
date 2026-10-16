@@ -14,6 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { useTaskStore } from '../../store/useTaskStore';
+import { fetchSubmissionsByTaskApi } from '../../api/taskApi';
 
 export default function ReviewSubmissionsScreen() {
   const router = useRouter();
@@ -35,7 +36,6 @@ export default function ReviewSubmissionsScreen() {
         return;
       }
       try {
-        const { fetchSubmissionsByTaskApi } = require('../../api/taskApi');
         const data = await fetchSubmissionsByTaskApi(campaign.id);
         const subArray = Array.isArray(data) ? data : (data?.data || data?.submissions || []);
         if (subArray.length > 0) {
@@ -173,27 +173,34 @@ export default function ReviewSubmissionsScreen() {
 
           <TouchableOpacity
             style={styles.approveAllBtn}
+            activeOpacity={0.8}
             onPress={() => {
-              Alert.alert(
-                'Approve Batch',
-                'This will approve all pending submissions in this batch and disburse funds. Proceed?',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Approve All',
-                    onPress: () => {
-                      displaySubmissions.forEach(sub => {
-                        if (sub.status === 'Pending') updateSubmissionStatus(sub.id, 'Approved');
-                      });
-                      Toast.show({
-                        type: 'success',
-                        text1: 'Batch Approved',
-                        text2: 'All pending tasks have been approved.',
-                      });
-                    },
-                  },
-                ]
-              );
+              const doApproveAll = () => {
+                displaySubmissions.forEach(sub => {
+                  const subId = sub.id || sub._id;
+                  if (sub.status === 'Pending') updateSubmissionStatus(subId, 'Approved');
+                });
+                Toast.show({
+                  type: 'success',
+                  text1: 'Batch Approved',
+                  text2: 'All pending tasks have been approved.',
+                });
+              };
+
+              if (Platform.OS === 'web') {
+                if (window.confirm('This will approve all pending submissions in this batch and disburse funds. Proceed?')) {
+                  doApproveAll();
+                }
+              } else {
+                Alert.alert(
+                  'Approve Batch',
+                  'This will approve all pending submissions in this batch and disburse funds. Proceed?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Approve All', onPress: doApproveAll },
+                  ]
+                );
+              }
             }}
           >
             <Feather name="check-circle" size={14} color="#610B99" style={{ marginRight: 6 }} />

@@ -13,7 +13,9 @@ import {
 } from 'react-native';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import Toast from 'react-native-toast-message';
 import { useTaskStore } from '../../store/useTaskStore';
+import { approveSubmissionApi, rejectSubmissionApi } from '../../api/taskApi';
 
 export default function CreatorReviewScreen() {
   const router = useRouter();
@@ -26,46 +28,72 @@ export default function CreatorReviewScreen() {
   const [rejectionNote, setRejectionNote] = useState('');
 
   const handlePreApprove = () => {
-    Alert.alert(
-      'Pre-Approved',
-      'Chidinma has been instructed to post the reel. Check back to verify the live link.',
-      [{ text: 'OK' }],
-    );
+    const studentName = submission?.studentName || 'The creator';
+    Toast.show({
+      type: 'success',
+      text1: 'Pre-Approved',
+      text2: `${studentName} has been instructed to post the reel. Check back to verify the live link.`,
+      position: 'top',
+      visibilityTime: 4000,
+    });
   };
 
   const handleApprove = async () => {
+    if (!submission?.id) return;
     try {
-      const { approveSubmissionApi } = require('../../api/taskApi');
       await approveSubmissionApi(submission.id);
-      
       updateSubmissionStatus(submission.id, 'Approved');
-      Alert.alert(
-        'Payment Sent!',
-        'Submission approved. ₦150 has been disbursed from escrow.',
-        [{ text: 'OK', onPress: () => router.back() }],
-      );
+      Toast.show({
+        type: 'success',
+        text1: 'Payment Sent!',
+        text2: 'Submission approved and reward disbursed from escrow.',
+        position: 'top',
+        visibilityTime: 3000,
+        onHide: () => router.back(),
+      });
+      setTimeout(() => router.back(), 1500);
     } catch (error: any) {
       console.log('Approve failed:', error);
-      Alert.alert('Error', error?.message || 'Failed to approve submission on backend.');
+      Toast.show({
+        type: 'error',
+        text1: 'Approval Failed',
+        text2: error?.message || 'Failed to approve submission on backend.',
+        position: 'top',
+      });
     }
   };
 
   const handleReject = async () => {
     if (!rejectionNote.trim()) {
-      Alert.alert('Missing Reason', 'Please write a rejection reason before sending');
+      Toast.show({
+        type: 'error',
+        text1: 'Missing Reason',
+        text2: 'Please write a rejection reason before sending.',
+        position: 'top',
+      });
       return;
     }
+    if (!submission?.id) return;
     try {
-      const { rejectSubmissionApi } = require('../../api/taskApi');
       await rejectSubmissionApi(submission.id, rejectionNote.trim());
-      
       updateSubmissionStatus(submission.id, 'Rejected');
-      Alert.alert('Revision Requested', 'Revision requested', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      Toast.show({
+        type: 'success',
+        text1: 'Revision Requested',
+        text2: 'Feedback sent to the creator for revision.',
+        position: 'top',
+        visibilityTime: 3000,
+        onHide: () => router.back(),
+      });
+      setTimeout(() => router.back(), 1500);
     } catch (error: any) {
       console.log('Reject failed:', error);
-      Alert.alert('Error', error?.message || 'Failed to reject submission on backend.');
+      Toast.show({
+        type: 'error',
+        text1: 'Revision Request Failed',
+        text2: error?.message || 'Failed to reject submission on backend.',
+        position: 'top',
+      });
     }
   };
 

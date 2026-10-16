@@ -376,7 +376,7 @@ export default function CreateTaskScreen() {
               <View style={styles.purpleDiamond} />
               <Text style={styles.breadcrumbTextActive}>CREATE TASK</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.breadcrumbItem}>
+            <TouchableOpacity style={styles.breadcrumbItem} onPress={() => router.push('/manage-campaigns')}>
               <View style={styles.purpleDiamond} />
               <Text style={styles.breadcrumbText}>MANAGE TASK</Text>
             </TouchableOpacity>
