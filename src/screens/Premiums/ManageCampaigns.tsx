@@ -15,6 +15,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Toast from 'react-native-toast-message';
 import { useTaskStore, Campaign } from '../../store/useTaskStore';
+import { fetchCompanyTasksApi, deleteCampaignApi } from '../../api/taskApi';
 
 export default function ManageCampaignsScreen() {
   const router = useRouter();
@@ -22,18 +23,27 @@ export default function ManageCampaignsScreen() {
   const setCampaigns = useTaskStore(state => state.setCampaigns);
   const deleteCampaign = useTaskStore(state => state.deleteCampaign);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadCompanyCampaigns = async () => {
       try {
-        const { fetchCompanyTasksApi } = require('../../api/taskApi');
         const data = await fetchCompanyTasksApi();
         const rawList = Array.isArray(data)
           ? data
           : (data?.data?.tasks || data?.data || data?.tasks || []);
 
-        const mapped: Campaign[] = rawList.map((t: any, idx: number) => {
-          const id = String(t.id || t._id || t.taskId || idx);
+        // ✅ Only show tasks where payment was confirmed
+        const paidList = rawList.filter((t: any) => {
+          const status = (t.status || '').toLowerCase();
+          const isPaid = t.isPaid === true || t.is_paid === true;
+          const isActive = status === 'active' || status === 'live' || status === 'published';
+          return isPaid || isActive;
+        });
+
+        const mapped: Campaign[] = paidList.map((t: any, idx: number) => {
+          // Preserve raw backend id for delete/API calls
+          const rawId = String(t.id || t._id || t.taskId || idx);
           const totalSpots = Number(t.totalSpots || t.totalSlots || t.spots || 0);
           const usedSpots = Number(t.usedSpots || t.claimedSpots || 0);
           const availableSlots = Math.max(0, totalSpots - usedSpots);
@@ -42,7 +52,7 @@ export default function ManageCampaignsScreen() {
             totalSpots > 0 ? Math.round(poolAmount / totalSpots) : Number(t.rewardAmount || 0);
 
           return {
-            id,
+            id: rawId,
             title: t.title || 'Untitled Campaign',
             companyName: t.sponsorName || t.companyName || t.brandName || 'Sponsor',
             companyInitials: (t.sponsorName || t.companyName || 'SP').slice(0, 2).toUpperCase(),
@@ -75,6 +85,40 @@ export default function ManageCampaignsScreen() {
 
     loadCompanyCampaigns();
   }, []);
+
+  const handleDelete = async (campaignId: string, title: string) => {
+    const doDelete = async () => {
+      if (deletingId) return;
+      setDeletingId(campaignId);
+      try {
+        await deleteCampaignApi(campaignId);
+        deleteCampaign(campaignId);
+        Toast.show({ type: 'success', text1: 'Campaign Deleted', text2: `"${title}" has been removed.`, position: 'top' });
+      } catch (e: any) {
+        console.log('Delete error:', e);
+        const msg = e?.response?.data?.message || e?.message || 'Please try again.';
+        Toast.show({ type: 'error', text1: 'Failed to delete', text2: msg, position: 'top' });
+      } finally {
+        setDeletingId(null);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      // Alert.alert is not reliable on web — use native browser confirm
+      const confirmed = window.confirm(`Delete "${title}"?\n\nThis cannot be undone.`);
+      if (confirmed) await doDelete();
+    } else {
+      Alert.alert(
+        'Delete Campaign',
+        `Are you sure you want to delete "${title}"?\n\nThis cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: doDelete },
+        ]
+      );
+    }
+  };
+
 
   const totalPool = campaigns.reduce((sum, c) => sum + (c.poolAmount || 0), 0);
 
@@ -146,27 +190,15 @@ export default function ManageCampaignsScreen() {
                       </View>
                     </View>
                   </View>
-                  <TouchableOpacity style={styles.trashIcon} onPress={() => {
-                      Alert.alert(
-                        'Delete Task',
-                        'Are you sure you want to delete this task?',
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Delete', style: 'destructive', onPress: async () => {
-                              try {
-                                const { deleteCampaignApi } = require('../../api/taskApi');
-                                await deleteCampaignApi(c.id);
-                                deleteCampaign(c.id);
-                                Toast.show({ type: 'success', text1: 'Task Deleted', position: 'top' });
-                              } catch (e: any) {
-                                console.log('Delete error:', e);
-                                Toast.show({ type: 'error', text1: 'Failed to delete', text2: e.message, position: 'top' });
-                              }
-                          }}
-                        ]
-                      );
-                    }}>
-                    <Feather name="trash-2" size={14} color="#ef4444" />
+                  <TouchableOpacity
+                    style={[styles.trashIcon, deletingId === c.id && { opacity: 0.5 }]}
+                    disabled={deletingId === c.id}
+                    onPress={() => handleDelete(c.id, c.title)}
+                  >
+                    {deletingId === c.id
+                      ? <ActivityIndicator size={14} color="#ef4444" />
+                      : <Feather name="trash-2" size={14} color="#ef4444" />
+                    }
                   </TouchableOpacity>
                 </View>
 
