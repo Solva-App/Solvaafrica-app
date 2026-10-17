@@ -13,8 +13,13 @@ export const fetchCompanyTasksApi = async () => {
 export const fetchTasksApi = fetchPublicTasksApi;
 
 export const fetchTaskByIdApi = async (id: string) => {
-  const response = await AUTH_API_CLIENT.get(`/tasks/${id}`);
-  return response.data;
+  try {
+    const response = await AUTH_API_CLIENT.get(`/tasks/company/${id}`);
+    return response.data;
+  } catch (e) {
+    const response = await AUTH_API_CLIENT.get(`/tasks/${id}`);
+    return response.data;
+  }
 };
 
 export const submitTaskApi = async (taskId: string, link: string) => {
@@ -58,17 +63,37 @@ export const activateTaskApi = async (taskId: string | number, paymentReference:
 };
 
 export const deleteCampaignApi = async (taskId: string) => {
-  const response = await AUTH_API_CLIENT.delete(`/tasks/${taskId}`);
-  return response.data;
+  try {
+    const response = await AUTH_API_CLIENT.delete(`/tasks/company/${taskId}`);
+    return response.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      const response = await AUTH_API_CLIENT.delete(`/tasks/${taskId}`);
+      return response.data;
+    }
+    throw err;
+  }
 };
 
 export const updateCampaignApi = async (taskId: string, formData: FormData) => {
-  const response = await AUTH_API_CLIENT.patch(`/tasks/${taskId}`, formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-  return response.data;
+  try {
+    const response = await AUTH_API_CLIENT.patch(`/tasks/company/${taskId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (err: any) {
+    if (err?.response?.status === 404) {
+      const response = await AUTH_API_CLIENT.patch(`/tasks/${taskId}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    }
+    throw err;
+  }
 };
 
 export const deleteSubmissionApi = async (submissionId: string) => {
